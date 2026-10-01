@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getCachedActiveOutlets } from "@/lib/portal/outlet-data-cache";
 import { OutletUserForm } from "../OutletUserForm";
-import page from "@/app/dashboard/dashboard-page.module.css";
 import styles from "@/app/dashboard/outlet-users/outlet-users.module.css";
 
 export default async function NewOutletUserPage() {
@@ -14,19 +13,19 @@ export default async function NewOutletUserPage() {
   }
 
   return (
-    <div className={page.pageShell}>
-      <Link href="/dashboard/outlet-users" className={styles.backLink}>
+    <div className="at-page-shell">
+      <Link href="/dashboard/outlet-users" className="at-backLink">
         ← Back to Outlet Users
       </Link>
-      <h1 className={page.pageTitle}>Create outlet user</h1>
-      <p className={page.lead}>
+      <h1 className="at-page-title">Create outlet user</h1>
+      <p className="at-page-lead">
         New Expo login with email and password. They cannot use Google or this portal.
       </p>
 
       {loadError ? (
-        <p className={page.msgErr}>{loadError}</p>
+        <p className="at-page-msgErr">{loadError}</p>
       ) : (
-        <section className={page.card}>
+        <section className="at-page-card">
           <OutletUserForm outlets={outlets} mode="create" returnPath="/dashboard/outlet-users" />
         </section>
       )}

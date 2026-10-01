@@ -1,7 +1,6 @@
 import { getPortalAdminsListData } from "@/lib/portal/admins-list-cache";
 import { AdminAccessControl } from "./AdminAccessControl";
 import { AliasField } from "./AliasField";
-import page from "@/app/dashboard/dashboard-page.module.css";
 import styles from "./admins.module.css";
 
 function formatDate(iso: string | null) {
@@ -25,9 +24,9 @@ export default async function AdminsPage() {
   }
 
   return (
-    <div className={page.pageShellWide}>
-      <h1 className={page.pageTitle}>Portal Admins</h1>
-      <p className={page.lead}>
+    <div className="at-page-shell-wide">
+      <h1 className="at-page-title">Portal Admins</h1>
+      <p className="at-page-lead">
         Users appear here after they sign in with Google at least once. Click{" "}
         <strong>Make admin</strong> for dashboard-only access. Click a green{" "}
         <strong>Portal admin</strong> pill to revoke. Set an <strong>alias</strong> per user (welcome
@@ -35,7 +34,7 @@ export default async function AdminsPage() {
       </p>
 
       {loadError && (
-        <p className={page.msgErr}>
+        <p className="at-page-msgErr">
           {loadError}
           {loadError.includes("SUPABASE_SERVICE_ROLE_KEY")
             ? " Add SUPABASE_SERVICE_ROLE_KEY to afterten-orders/.env.local (server only)."
@@ -43,7 +42,7 @@ export default async function AdminsPage() {
         </p>
       )}
 
-      <div className={page.card}>
+      <div className="at-page-card">
         {!loadError && users.length === 0 && (
           <p className={styles.empty}>No signed-in users yet. Ask them to use Continue with Google once.</p>
         )}

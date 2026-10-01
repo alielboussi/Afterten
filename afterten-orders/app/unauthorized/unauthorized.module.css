@@ -5,7 +5,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: #f8fafc;
+  background: var(--afterten-bg);
 }
 
 .banner {
@@ -42,6 +42,7 @@
   margin: 0 0 12px;
   color: var(--afterten-red);
   font-size: 1.35rem;
+  text-align: center;
 }
 
 .body {

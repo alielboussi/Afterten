@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createOutletUser, updateOutletUser } from "./actions";
-import styles from "@/app/dashboard/outlet-users/outlet-users.module.css";
+import { deriveOutletCredentials } from "@/lib/portal/outlet-identifiers";
 
 type OutletOption = { id: string; name: string };
 
@@ -47,6 +47,15 @@ export function OutletUserForm(props: Props) {
   const [active, setActive] = useState(isEdit ? props.initial.active : true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  function applyAliasFields(nextAlias: string) {
+    setAlias(nextAlias);
+    if (!nextAlias.trim()) return;
+    const { outletId: nextId, email: nextEmail } = deriveOutletCredentials(nextAlias);
+    setOutletId(nextId);
+    setEmail(nextEmail);
+    if (!isEdit) setOutletName(nextAlias.trim());
+  }
 
   function onPickOutlet(id: string) {
     setOutletId(id);
@@ -96,20 +105,20 @@ export function OutletUserForm(props: Props) {
   }
 
   return (
-    <form className={styles.form} onSubmit={onSubmit}>
+    <form className="at-form" onSubmit={onSubmit}>
       {mode === "create" && (
-        <p className={styles.formHint}>
-          Creates a Supabase Auth user with <strong>email + password</strong> and an{" "}
-          <strong>outlet_app</strong> profile.
+        <p className="at-form-hint">
+          Outlet ID is the first 4 characters of the alias; email is{" "}
+          <strong>xxxx@ordersapp.com</strong> (same 4 characters, lowercase).
         </p>
       )}
 
-      <div className={styles.fieldRow}>
-        <label className={styles.label}>
+      <div className="at-form-grid">
+        <label className="at-form-label at-form-span-2">
           Outlet
           {outlets.length > 0 ? (
             <select
-              className={styles.input}
+              className="at-form-select"
               value={outletId}
               onChange={(e) => onPickOutlet(e.target.value)}
             >
@@ -120,91 +129,94 @@ export function OutletUserForm(props: Props) {
               ))}
             </select>
           ) : (
-            <span className={styles.muted}>Enter outlet ID and name below.</span>
+            <span className="at-form-hint" style={{ textAlign: "left" }}>
+              Enter outlet ID and name below.
+            </span>
           )}
         </label>
-      </div>
 
-      <div className={styles.twoCol}>
-        <label className={styles.label}>
+        <label className="at-form-label">
           Outlet ID
           <input
-            className={styles.input}
+            className="at-form-input"
             value={outletId}
-            onChange={(e) => setOutletId(e.target.value.toUpperCase())}
-            placeholder="BR1"
+            onChange={(e) => setOutletId(e.target.value.toUpperCase().slice(0, 4))}
+            placeholder="RIVE"
+            maxLength={4}
             required
+            readOnly={!isEdit}
           />
         </label>
-        <label className={styles.label}>
+        <label className="at-form-label">
           Outlet name
           <input
-            className={styles.input}
+            className="at-form-input"
             value={outletName}
-            onChange={(e) => setOutletName(e.target.value)}
-            placeholder="Branch One"
+            onChange={(e) =>
+              isEdit ? setOutletName(e.target.value) : applyAliasFields(e.target.value)
+            }
+            placeholder="Riverside"
             required
           />
         </label>
-      </div>
 
-      <label className={styles.label}>
-        Email (login)
-        <input
-          className={styles.input}
-          type="email"
-          autoComplete="off"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-      </label>
+        <label className="at-form-label at-form-span-2">
+          Email (login)
+          <input
+            className="at-form-input"
+            type="email"
+            autoComplete="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value.toLowerCase())}
+            readOnly={!isEdit}
+            required
+          />
+        </label>
 
-      <div className={styles.twoCol}>
-        <label className={styles.label}>
+        <label className="at-form-label">
           {isEdit ? "New password (optional)" : "Password"}
           <input
-            className={styles.input}
+            className="at-form-input"
             type="password"
             autoComplete={isEdit ? "new-password" : "new-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            minLength={isEdit ? undefined : 8}
+            minLength={isEdit ? undefined : 6}
             required={!isEdit}
             placeholder={isEdit ? "Leave blank to keep current" : undefined}
           />
         </label>
-        <label className={styles.label}>
+        <label className="at-form-label">
           Alias (shown in app)
           <input
-            className={styles.input}
+            className="at-form-input"
             value={alias}
-            onChange={(e) => setAlias(e.target.value)}
+            onChange={(e) => applyAliasFields(e.target.value)}
             maxLength={48}
-            placeholder="e.g. Sam — Branch 1"
+            placeholder="Riverside"
             required
           />
         </label>
       </div>
 
       {isEdit && (
-        <label className={styles.checkRow}>
+        <label className="at-form-checkRow">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Account active (can sign in to Expo app)
         </label>
       )}
 
       {message && (
-        <p className={message.type === "ok" ? styles.msgOk : styles.msgErr} role="alert">
+        <p className={message.type === "ok" ? "at-form-msgOk" : "at-form-msgErr"} role="alert">
           {message.text}
         </p>
       )}
 
-      <div className={styles.formActions}>
-        <button type="button" className={styles.cancelBtn} onClick={() => router.push(returnPath)}>
+      <div className="at-form-actions">
+        <button type="button" className="at-form-cancelBtn" onClick={() => router.push(returnPath)}>
           Cancel
         </button>
-        <button type="submit" className={styles.submitBtn} disabled={busy}>
+        <button type="submit" className="at-form-submitBtn" disabled={busy}>
           {busy ? "Saving…" : isEdit ? "Save changes" : "Create outlet user"}
         </button>
       </div>

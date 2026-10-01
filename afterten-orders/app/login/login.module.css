@@ -5,7 +5,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: #f8fafc;
+  background: var(--afterten-bg);
 }
 
 .banner {
@@ -48,7 +48,7 @@
   margin: 0 0 8px;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--afterten-blue);
+  color: var(--afterten-red-dark);
 }
 
 .sub {
@@ -129,8 +129,9 @@
 }
 
 .input:focus {
-  outline: 2px solid var(--afterten-blue);
-  outline-offset: 1px;
+  border-color: var(--afterten-red);
+  outline: none;
+  box-shadow: var(--afterten-focus-ring);
 }
 
 .primaryBtn {

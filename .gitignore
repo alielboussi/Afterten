@@ -15,6 +15,7 @@ firebase/functions/lib/
 .env*
 !.env.example
 afterten-orders/.env
+docs/OUTLET-APP-CREDENTIALS.md
 
 # Secrets (never commit)
 secrets/

@@ -25,7 +25,7 @@
 
 .header {
   border-bottom: 1px solid var(--afterten-border);
-  background: #fffbf7;
+  background: #ffffff;
 }
 
 .headerInner {
@@ -40,7 +40,7 @@
 
 .brand {
   font-weight: 700;
-  color: #7c2d12;
+  color: var(--afterten-red-deep);
   font-size: 1.15rem;
   letter-spacing: -0.02em;
 }
@@ -62,7 +62,7 @@
   width: var(--sidebar-width);
   flex-shrink: 0;
   border-right: 1px solid var(--afterten-border);
-  background: linear-gradient(180deg, #fffbf7 0%, #fff7ed 100%);
+  background: var(--afterten-bg);
   padding: 10px 6px 14px;
   display: flex;
   flex-direction: column;
@@ -73,7 +73,7 @@
 .welcomeBanner {
   padding: 10px 8px 9px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #9a3412 0%, #c2410c 55%, #ea580c 100%);
+  background: var(--afterten-accent-gradient-banner);
   color: #fff;
   box-shadow: 0 4px 14px rgb(234 88 12 / 25%);
   text-align: center;
@@ -111,9 +111,9 @@
   font-weight: 600;
   font-size: 0.72rem;
   line-height: 1.25;
-  color: #9a3412;
+  color: var(--afterten-red-dark);
   background: rgb(255 255 255 / 70%);
-  border: 1px solid #fed7aa;
+  border: 1px solid var(--afterten-red-border);
   transition:
     background 0.15s ease,
     color 0.15s ease,
@@ -131,7 +131,7 @@
 }
 
 .navPill:hover {
-  background: #ffedd5;
+  background: var(--afterten-red-soft);
   box-shadow: 0 2px 8px rgb(234 88 12 / 12%);
 }
 
@@ -143,7 +143,7 @@
   font-weight: 600;
   font-size: 0.72rem;
   line-height: 1.25;
-  background: linear-gradient(135deg, #ea580c, #c2410c);
+  background: var(--afterten-accent-gradient);
   color: #fff;
   border: 1px solid transparent;
   box-shadow: 0 4px 12px rgb(234 88 12 / 30%);

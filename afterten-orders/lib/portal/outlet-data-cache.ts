@@ -1,3 +1,5 @@
+import "server-only";
+
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 
@@ -43,7 +45,7 @@ async function fetchActiveOutlets(): Promise<OutletOption[]> {
 }
 
 export function getCachedOutletStaffList() {
-  return unstable_cache(fetchOutletStaffList, ["outlet-staff-list-v1"], {
+  return unstable_cache(fetchOutletStaffList, ["outlet-staff-list-v2"], {
     revalidate: 60,
     tags: ["outlet-users-list"],
   })();

@@ -51,8 +51,9 @@
 }
 
 .input:focus {
-  outline: 2px solid #ea580c;
-  outline-offset: 1px;
+  border-color: var(--afterten-red);
+  outline: none;
+  box-shadow: var(--afterten-focus-ring);
 }
 
 .submitBtn {
@@ -61,7 +62,7 @@
   padding: 11px 22px;
   border: none;
   border-radius: 999px;
-  background: linear-gradient(135deg, #ea580c, #c2410c);
+  background: var(--afterten-accent-gradient);
   color: #fff;
   font-weight: 600;
   cursor: pointer;
@@ -123,7 +124,7 @@
 .table th {
   font-weight: 600;
   color: var(--afterten-muted);
-  background: #fff7ed;
+  background: #ffffff;
 }
 
 .table tr:last-child td {
@@ -150,58 +151,136 @@
   font-weight: 600;
 }
 
-.listHeader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-@media (min-width: 520px) {
-  .listHeader {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
-}
-
-.createBtn {
-  display: inline-block;
-  padding: 10px 20px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #ea580c, #c2410c);
-  color: #fff;
-  font-weight: 600;
-  font-size: 0.9rem;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.createBtn:hover {
-  filter: brightness(1.05);
-}
-
 .editBtn {
   display: inline-block;
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid #fed7aa;
+  border: 1px solid var(--afterten-red-border);
   background: #fff;
-  color: #9a3412;
+  color: var(--afterten-red-dark);
   font-weight: 600;
   font-size: 0.82rem;
   text-decoration: none;
 }
 
 .editBtn:hover {
-  background: #ffedd5;
+  background: var(--afterten-red-soft);
+}
+
+.actionCell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+
+.productsBtn {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e40af;
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.productsBtn:hover {
+  background: #dbeafe;
+}
+
+.productPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.pickerToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbarBtn {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--afterten-border);
+  background: #fff;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pickerCount {
+  font-size: 0.85rem;
+  color: var(--afterten-muted);
+}
+
+.productPickList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 28rem;
+  overflow-y: auto;
+}
+
+.productPickRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--afterten-border);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.pickThumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.pickThumbPlaceholder {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: #f5f5f4;
+  flex-shrink: 0;
+}
+
+.pickBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.pickName {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.pickMeta {
+  font-size: 0.8rem;
+  color: var(--afterten-muted);
 }
 
 .backLink {
   display: inline-block;
   margin-bottom: 16px;
-  color: #9a3412;
+  color: var(--afterten-red-dark);
   font-weight: 600;
   font-size: 0.9rem;
   text-decoration: none;

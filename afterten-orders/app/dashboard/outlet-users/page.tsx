@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { getCachedOutletStaffList } from "@/lib/portal/outlet-data-cache";
-import page from "@/app/dashboard/dashboard-page.module.css";
 import styles from "@/app/dashboard/outlet-users/outlet-users.module.css";
 
 export default async function OutletUsersPage() {
@@ -14,12 +13,12 @@ export default async function OutletUsersPage() {
   }
 
   return (
-    <div className={page.pageShellWide}>
-      <h1 className={page.pageTitle}>Outlet Users</h1>
-      <p className={page.lead}>Outlet app accounts — email + password sign-in on Expo only (no Google).</p>
+    <div className="at-page-shell-wide">
+      <h1 className="at-page-title">Outlet Users</h1>
+      <p className="at-page-lead">Outlet app accounts — email + password sign-in on Expo only (no Google).</p>
 
       {loadError && (
-        <p className={page.msgErr}>
+        <p className="at-page-msgErr">
           {loadError}
           {loadError.includes("SUPABASE_SERVICE_ROLE_KEY")
             ? " Add SUPABASE_SERVICE_ROLE_KEY to afterten-orders/.env.local."
@@ -28,10 +27,10 @@ export default async function OutletUsersPage() {
       )}
 
       {!loadError && (
-        <section className={page.card}>
-          <div className={styles.listHeader}>
-            <h2 className={page.sectionTitle}>Outlet app accounts</h2>
-            <Link href="/dashboard/outlet-users/new" className={styles.createBtn}>
+        <section className="at-page-card">
+          <div className="at-listHeader">
+            <h2 className="at-page-sectionTitle">Outlet app accounts</h2>
+            <Link href="/dashboard/outlet-users/new" className="at-createBtn">
               Create new
             </Link>
           </div>
@@ -43,9 +42,8 @@ export default async function OutletUsersPage() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Alias</th>
-                    <th>Email</th>
                     <th>Outlet</th>
+                    <th>Email</th>
                     <th>Status</th>
                     <th />
                   </tr>
@@ -53,23 +51,28 @@ export default async function OutletUsersPage() {
                 <tbody>
                   {staff.map((s) => (
                     <tr key={s.userId}>
-                      <td>{s.alias ?? "—"}</td>
+                      <td>{s.alias ?? s.outletName ?? "—"}</td>
                       <td>{s.email}</td>
-                      <td>
-                        {s.outletId} — {s.outletName}
-                      </td>
                       <td>
                         <span className={s.active ? styles.badgeActive : styles.badgeOff}>
                           {s.active ? "Active" : "Disabled"}
                         </span>
                       </td>
                       <td>
-                        <Link
-                          href={`/dashboard/outlet-users/${s.userId}/edit`}
-                          className={styles.editBtn}
-                        >
-                          Edit
-                        </Link>
+                        <div className={styles.actionCell}>
+                          <Link
+                            href={`/dashboard/outlet-users/${s.userId}/products`}
+                            className={styles.productsBtn}
+                          >
+                            Products
+                          </Link>
+                          <Link
+                            href={`/dashboard/outlet-users/${s.userId}/edit`}
+                            className={styles.editBtn}
+                          >
+                            Edit
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}

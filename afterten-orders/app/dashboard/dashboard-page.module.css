@@ -16,7 +16,7 @@
   font-size: 1.65rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #7c2d12;
+  color: var(--afterten-red-deep);
 }
 
 .lead {
@@ -30,15 +30,15 @@
 
 .lead code {
   font-size: 0.88em;
-  background: #fff7ed;
+  background: #ffffff;
   padding: 2px 6px;
   border-radius: 4px;
-  color: #9a3412;
+  color: var(--afterten-red-dark);
 }
 
 .card {
   background: #fff;
-  border: 1px solid #fed7aa;
+  border: 1px solid var(--afterten-red-border);
   border-radius: 14px;
   padding: 24px 26px;
   margin-bottom: 22px;
@@ -50,7 +50,7 @@
   margin: 0 0 14px;
   font-size: 1rem;
   font-weight: 600;
-  color: #9a3412;
+  color: var(--afterten-red-dark);
   text-align: center;
 }
 

@@ -24,7 +24,7 @@
 .loadingBar {
   height: 3px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #fed7aa, #ea580c, #fed7aa);
+  background: linear-gradient(90deg, var(--afterten-red-border), var(--afterten-red), var(--afterten-red-border));
   background-size: 200% 100%;
   animation: loadingShimmer 0.9s ease-in-out infinite;
   margin-bottom: 20px;

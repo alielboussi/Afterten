@@ -5,14 +5,21 @@
   "scripts": {
     "dev": "npm run dev --prefix afterten-orders",
     "dev:clean": "npm run dev:clean --prefix afterten-orders",
+    "dev:turbo": "npm run dev:turbo --prefix afterten-orders",
+    "clean:cache": "npm run clean:cache --prefix afterten-orders",
     "portal:build": "npm run build --prefix afterten-orders",
     "supabase:inspect": "node scripts/supabase/inspect.mjs",
     "supabase:query": "node scripts/supabase/query.mjs",
     "supabase:check": "node scripts/supabase/check-connection.mjs",
-    "supabase:seed-portal-admin": "node scripts/supabase/seed-portal-admin.mjs"
+    "supabase:seed-portal-admin": "node scripts/supabase/seed-portal-admin.mjs",
+    "supabase:seed-outlet-users": "node scripts/supabase/seed-outlet-users.mjs",
+    "icons:generate": "node scripts/generate-afterten-icon.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
   }
 }

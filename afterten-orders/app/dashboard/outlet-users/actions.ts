@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { deriveOutletCredentials } from "@/lib/portal/outlet-identifiers";
 import { OUTLETS_LIST_TAG, OUTLET_USERS_LIST_TAG } from "@/lib/portal/outlet-data-cache";
 
 export type CreateOutletUserInput = {
@@ -17,14 +18,28 @@ export async function createOutletUser(input: CreateOutletUserInput) {
   const gate = await assertCallerIsPortalAdmin();
   if (!gate.ok) return gate;
 
-  const outletId = input.outletId.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
   const outletName = input.outletName.trim();
   const email = input.email.trim().toLowerCase();
   const password = input.password;
   const alias = input.alias.trim();
+  const derived = deriveOutletCredentials(alias);
+  const outletId =
+    input.outletId.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "") || derived.outletId;
 
-  if (!outletId || outletId.length < 2) {
-    return { ok: false as const, error: "Outlet ID must be at least 2 characters (letters/numbers)." };
+  if (!outletId || outletId.length !== 4) {
+    return { ok: false as const, error: "Outlet ID must be exactly 4 characters (from alias)." };
+  }
+  if (derived.outletId && outletId !== derived.outletId) {
+    return {
+      ok: false as const,
+      error: `Outlet ID must be ${derived.outletId} for alias “${alias}”.`,
+    };
+  }
+  if (email !== derived.email) {
+    return {
+      ok: false as const,
+      error: `Email must be ${derived.email} for this alias.`,
+    };
   }
   if (!outletName) {
     return { ok: false as const, error: "Outlet name is required." };
@@ -32,8 +47,8 @@ export async function createOutletUser(input: CreateOutletUserInput) {
   if (!email || !email.includes("@")) {
     return { ok: false as const, error: "Valid email is required." };
   }
-  if (password.length < 8) {
-    return { ok: false as const, error: "Password must be at least 8 characters." };
+  if (password.length < 6) {
+    return { ok: false as const, error: "Password must be at least 6 characters." };
   }
   if (!alias || alias.length > 48) {
     return { ok: false as const, error: "Alias is required (max 48 characters)." };
@@ -130,24 +145,32 @@ export async function updateOutletUser(input: UpdateOutletUserInput) {
   const gate = await assertCallerIsPortalAdmin();
   if (!gate.ok) return gate;
 
-  const outletId = input.outletId.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+  const alias = input.alias.trim();
+  const derived = deriveOutletCredentials(alias);
+  const outletId =
+    input.outletId.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "") || derived.outletId;
   const outletName = input.outletName.trim();
   const email = input.email.trim().toLowerCase();
-  const alias = input.alias.trim();
   const password = input.password;
   const { userId } = input;
 
   if (!userId) return { ok: false as const, error: "Invalid user." };
-  if (!outletId || outletId.length < 2) {
-    return { ok: false as const, error: "Outlet ID must be at least 2 characters." };
+  if (!outletId || outletId.length !== 4) {
+    return { ok: false as const, error: "Outlet ID must be exactly 4 characters." };
+  }
+  if (outletId !== derived.outletId) {
+    return { ok: false as const, error: `Outlet ID must be ${derived.outletId} for alias “${alias}”.` };
+  }
+  if (email !== derived.email) {
+    return { ok: false as const, error: `Email must be ${derived.email} for this alias.` };
   }
   if (!outletName) return { ok: false as const, error: "Outlet name is required." };
   if (!email || !email.includes("@")) return { ok: false as const, error: "Valid email is required." };
   if (!alias || alias.length > 48) {
     return { ok: false as const, error: "Alias is required (max 48 characters)." };
   }
-  if (password.length > 0 && password.length < 8) {
-    return { ok: false as const, error: "Password must be at least 8 characters or left blank." };
+  if (password.length > 0 && password.length < 6) {
+    return { ok: false as const, error: "Password must be at least 6 characters or left blank." };
   }
 
   const admin = createAdminClient();
@@ -187,7 +210,7 @@ export async function updateOutletUser(input: UpdateOutletUserInput) {
 
   const authUpdate: { email?: string; password?: string } = {};
   if (email !== (profile.email as string).toLowerCase()) authUpdate.email = email;
-  if (password.length >= 8) authUpdate.password = password;
+  if (password.length >= 6) authUpdate.password = password;
 
   if (Object.keys(authUpdate).length > 0) {
     const { error: authError } = await admin.auth.admin.updateUserById(userId, authUpdate);

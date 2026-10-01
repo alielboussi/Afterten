@@ -10,7 +10,7 @@
 
 .table th,
 .table td {
-  text-align: left;
+  text-align: center;
   padding: 12px 14px;
   border-bottom: 1px solid var(--afterten-border);
   vertical-align: middle;
@@ -19,8 +19,7 @@
 .table th {
   font-weight: 600;
   color: var(--afterten-muted);
-  background: #fff7ed;
-  text-align: center;
+  background: #ffffff;
 }
 
 .table td {
@@ -72,7 +71,7 @@
   padding: 8px 14px;
   border: none;
   border-radius: 999px;
-  background: linear-gradient(135deg, #ea580c, #c2410c);
+  background: var(--afterten-accent-gradient);
   color: #fff;
   font-weight: 600;
   cursor: pointer;
@@ -116,8 +115,9 @@
 }
 
 .aliasInput:focus {
-  outline: 2px solid #ea580c;
-  outline-offset: 1px;
+  border-color: var(--afterten-red);
+  outline: none;
+  box-shadow: var(--afterten-focus-ring);
 }
 
 .inlineOk {

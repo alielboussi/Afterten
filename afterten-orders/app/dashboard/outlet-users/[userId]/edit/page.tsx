@@ -5,7 +5,6 @@ import {
   getCachedOutletStaffUser,
 } from "@/lib/portal/outlet-data-cache";
 import { OutletUserForm } from "../../OutletUserForm";
-import page from "@/app/dashboard/dashboard-page.module.css";
 import styles from "@/app/dashboard/outlet-users/outlet-users.module.css";
 
 type Props = {
@@ -31,17 +30,17 @@ export default async function EditOutletUserPage({ params }: Props) {
   if (!loadError && !user) notFound();
 
   return (
-    <div className={page.pageShell}>
-      <Link href="/dashboard/outlet-users" className={styles.backLink}>
+    <div className="at-page-shell">
+      <Link href="/dashboard/outlet-users" className="at-backLink">
         ← Back to Outlet Users
       </Link>
-      <h1 className={page.pageTitle}>Edit outlet user</h1>
-      <p className={page.lead}>Update alias, outlet, password, or active status.</p>
+      <h1 className="at-page-title">Edit outlet user</h1>
+      <p className="at-page-lead">Update alias, outlet, password, or active status.</p>
 
       {loadError ? (
-        <p className={page.msgErr}>{loadError}</p>
+        <p className="at-page-msgErr">{loadError}</p>
       ) : user ? (
-        <section className={page.card}>
+        <section className="at-page-card">
           <OutletUserForm
             outlets={outlets}
             mode="edit"
