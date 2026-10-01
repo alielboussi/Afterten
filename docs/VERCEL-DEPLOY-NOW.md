@@ -30,13 +30,15 @@ git push origin master
 
 Remove any custom **Install** / **Build** commands that say “Static site — no build”.
 
-## 3. Environment variables (Production + Preview)
+## 3. Environment variables (Production + Preview) — required
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (for Portal admins page)
+Without these, `/login` errors and Google sign-in cannot finish.
 
-Redeploy after the push.
+- `NEXT_PUBLIC_SUPABASE_URL` — e.g. `https://ijaseteczrguoforksbl.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase → Project Settings → API → anon public
+- `SUPABASE_SERVICE_ROLE_KEY` — server only (Portal admins page)
+
+After adding or changing env vars, click **Redeploy** on the latest deployment.
 
 ## 4. Verify
 

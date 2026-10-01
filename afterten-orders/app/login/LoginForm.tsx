@@ -6,10 +6,19 @@ import styles from "./login.module.css";
 
 type Props = {
   errorCode?: string | null;
+  configMissing?: boolean;
 };
 
-export function LoginForm({ errorCode }: Props) {
-  const supabase = useMemo(() => createClient(), []);
+function supabaseClient() {
+  try {
+    return createClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Supabase is not configured.";
+    throw new Error(msg);
+  }
+}
+
+export function LoginForm({ errorCode, configMissing }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -24,28 +33,44 @@ export function LoginForm({ errorCode }: Props) {
     e.preventDefault();
     setBusy(true);
     setMessage(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) {
-      setMessage(error.message);
-      return;
+    try {
+      const supabase = supabaseClient();
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setBusy(false);
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+      window.location.href = "/dashboard";
+    } catch (e) {
+      setBusy(false);
+      setMessage(e instanceof Error ? e.message : "Sign-in failed.");
     }
-    window.location.href = "/dashboard";
   }
 
   async function onGoogleLogin() {
     setBusy(true);
     setMessage(null);
-    const { error } = await supabase.auth.signInWithOAuth({
+    try {
+      const supabase = supabaseClient();
+      const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: callbackUrl,
         queryParams: { prompt: "select_account" },
       },
-    });
-    setBusy(false);
-    if (error) setMessage(error.message);
+      });
+      setBusy(false);
+      if (error) setMessage(error.message);
+    } catch (e) {
+      setBusy(false);
+      setMessage(e instanceof Error ? e.message : "Sign-in failed.");
+    }
   }
+
+  const configError = configMissing
+    ? "Server misconfiguration: add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY on Vercel, then redeploy."
+    : null;
 
   const bootError =
     errorCode === "auth_callback"
@@ -70,13 +95,18 @@ export function LoginForm({ errorCode }: Props) {
           <p className={styles.sub}>Sign in to manage outlet orders</p>
         </header>
 
-        {(bootError || message) && (
+        {(configError || bootError || message) && (
           <p className={styles.error} role="alert">
-            {bootError || message}
+            {configError || bootError || message}
           </p>
         )}
 
-        <button type="button" className={styles.googleBtn} onClick={onGoogleLogin} disabled={busy}>
+        <button
+          type="button"
+          className={styles.googleBtn}
+          onClick={onGoogleLogin}
+          disabled={busy || Boolean(configMissing)}
+        >
           <GoogleIcon />
           Continue with Google
         </button>
@@ -108,7 +138,7 @@ export function LoginForm({ errorCode }: Props) {
               required
             />
           </label>
-          <button type="submit" className={styles.primaryBtn} disabled={busy}>
+          <button type="submit" className={styles.primaryBtn} disabled={busy || Boolean(configMissing)}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
