@@ -1,52 +1,27 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listOutletOrderCatalog = exports.getStockControlSnapshot = exports.completeDamageReport = exports.dispatchDamageReport = exports.getDamageReportSignatureUrl = exports.getDamageReportPhotoUrl = exports.reviewDamageReport = exports.submitDamageReport = exports.unregisterPushToken = exports.registerPushToken = exports.clearPreparationChecklist = exports.togglePreparationChecklistItem = exports.updateTransferOrderItems = exports.peekNextOrderNumber = exports.getTransferOrderSignatureUrl = exports.dispatchTransferOrder = exports.acceptTransferOrder = exports.completeTransferOrder = exports.placeTransferOrder = exports.health = void 0;
+exports.getSignatureUploadUrl = exports.completeOutletOrder = exports.listOutletOrders = exports.placeOutletOrder = exports.peekNextOrderNumber = exports.listOutletOrderCatalog = exports.getOrdersAppProfile = exports.health = void 0;
 const app_1 = require("firebase-admin/app");
 const https_1 = require("firebase-functions/v2/https");
-const schema_1 = require("./schema");
-const transfer_orders_1 = require("./transfer-orders");
-Object.defineProperty(exports, "acceptTransferOrder", { enumerable: true, get: function () { return transfer_orders_1.acceptTransferOrder; } });
-Object.defineProperty(exports, "completeTransferOrder", { enumerable: true, get: function () { return transfer_orders_1.completeTransferOrder; } });
-Object.defineProperty(exports, "dispatchTransferOrder", { enumerable: true, get: function () { return transfer_orders_1.dispatchTransferOrder; } });
-Object.defineProperty(exports, "getTransferOrderSignatureUrl", { enumerable: true, get: function () { return transfer_orders_1.getTransferOrderSignatureUrl; } });
-Object.defineProperty(exports, "peekNextOrderNumber", { enumerable: true, get: function () { return transfer_orders_1.peekNextOrderNumber; } });
-Object.defineProperty(exports, "placeTransferOrder", { enumerable: true, get: function () { return transfer_orders_1.placeTransferOrder; } });
-Object.defineProperty(exports, "updateTransferOrderItems", { enumerable: true, get: function () { return transfer_orders_1.updateTransferOrderItems; } });
-(0, app_1.initializeApp)({
-    storageBucket: "afterten-portal-system.firebasestorage.app",
-});
-/**
- * Step 1 gate: proves Functions deploy + SCPGT can call Firebase later.
- * Callable from portal or firebase CLI after deploy.
- */
-exports.health = (0, https_1.onCall)({ region: "africa-south1" }, async () => {
+const catalog_1 = require("./catalog");
+Object.defineProperty(exports, "getOrdersAppProfile", { enumerable: true, get: function () { return catalog_1.getOrdersAppProfile; } });
+Object.defineProperty(exports, "listOutletOrderCatalog", { enumerable: true, get: function () { return catalog_1.listOutletOrderCatalog; } });
+const orders_1 = require("./orders");
+Object.defineProperty(exports, "completeOutletOrder", { enumerable: true, get: function () { return orders_1.completeOutletOrder; } });
+Object.defineProperty(exports, "getSignatureUploadUrl", { enumerable: true, get: function () { return orders_1.getSignatureUploadUrl; } });
+Object.defineProperty(exports, "listOutletOrders", { enumerable: true, get: function () { return orders_1.listOutletOrders; } });
+Object.defineProperty(exports, "peekNextOrderNumber", { enumerable: true, get: function () { return orders_1.peekNextOrderNumber; } });
+Object.defineProperty(exports, "placeOutletOrder", { enumerable: true, get: function () { return orders_1.placeOutletOrder; } });
+const system_1 = require("./system");
+(0, app_1.initializeApp)();
+const REGION = "africa-south1";
+exports.health = (0, https_1.onCall)({ region: REGION }, async () => {
+    await (0, system_1.ensureSystemConfigDoc)();
     return {
         ok: true,
-        service: "afterten-firebase",
-        step: 2,
-        region: "africa-south1",
-        collections: schema_1.COLLECTIONS,
-        message: "Firebase foundation + schema ready",
+        service: "afterten-outlet-orders",
+        region: REGION,
         at: new Date().toISOString(),
     };
 });
-var preparation_1 = require("./preparation");
-Object.defineProperty(exports, "togglePreparationChecklistItem", { enumerable: true, get: function () { return preparation_1.togglePreparationChecklistItem; } });
-Object.defineProperty(exports, "clearPreparationChecklist", { enumerable: true, get: function () { return preparation_1.clearPreparationChecklist; } });
-var push_tokens_1 = require("./push-tokens");
-Object.defineProperty(exports, "registerPushToken", { enumerable: true, get: function () { return push_tokens_1.registerPushToken; } });
-Object.defineProperty(exports, "unregisterPushToken", { enumerable: true, get: function () { return push_tokens_1.unregisterPushToken; } });
-var damage_reports_1 = require("./damage-reports");
-Object.defineProperty(exports, "submitDamageReport", { enumerable: true, get: function () { return damage_reports_1.submitDamageReport; } });
-Object.defineProperty(exports, "reviewDamageReport", { enumerable: true, get: function () { return damage_reports_1.reviewDamageReport; } });
-Object.defineProperty(exports, "getDamageReportPhotoUrl", { enumerable: true, get: function () { return damage_reports_1.getDamageReportPhotoUrl; } });
-Object.defineProperty(exports, "getDamageReportSignatureUrl", { enumerable: true, get: function () { return damage_reports_1.getDamageReportSignatureUrl; } });
-Object.defineProperty(exports, "dispatchDamageReport", { enumerable: true, get: function () { return damage_reports_1.dispatchDamageReport; } });
-Object.defineProperty(exports, "completeDamageReport", { enumerable: true, get: function () { return damage_reports_1.completeDamageReport; } });
-var stock_control_1 = require("./stock-control");
-Object.defineProperty(exports, "getStockControlSnapshot", { enumerable: true, get: function () { return stock_control_1.getStockControlSnapshot; } });
-// BILLING SAFETY: do not export syncStockCatalog or any onSchedule catalog sync.
-// Manual portal sync (when unlocked in code) uses the Next.js stock-api-sync route.
-var outlet_order_catalog_list_1 = require("./outlet-order-catalog-list");
-Object.defineProperty(exports, "listOutletOrderCatalog", { enumerable: true, get: function () { return outlet_order_catalog_list_1.listOutletOrderCatalog; } });
 //# sourceMappingURL=index.js.map

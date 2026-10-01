@@ -1,27 +1,36 @@
-# Afterten
+# Afterten — Outlet Orders (Firebase + Expo Go)
 
-Monorepo for Afterten outlet operations.
+Lightweight stack: **Firebase** backend, **Expo Go** mobile app, **Vercel** static landing only.
 
-## Active projects
+| Piece | Location |
+|-------|----------|
+| Firebase (Auth, Firestore, Functions, Storage) | [`firebase/`](firebase/) |
+| Expo app (Expo Go) | [`afterten-orders/`](afterten-orders/) |
+| Public site | [aftertentransfers.app](https://aftertentransfers.app/) → Vercel root **`afterten-orders`**, output **`public`** |
 
-| Path | Purpose |
-|------|---------|
-| [`afterten-website-portal/`](afterten-website-portal/) | Warehouse backoffice (Next.js + Firebase) — production on Vercel |
-| [`pos-sync-service/`](pos-sync-service/) | SCPGT — MintPOS → Firestore sync middleware |
-| [`firebase/`](firebase/) | Firestore rules, Cloud Functions, admin scripts |
-| [`afterten-orders-expo/`](afterten-orders-expo/) | Outlet transfer orders app (Expo + Firebase) — local checkout, gitignored |
+## Start here
 
-## Retired
+1. **[docs/FIREBASE-PROJECT-SETUP.md](docs/FIREBASE-PROJECT-SETUP.md)** — new project, budget hard stop, deploy, seed outlet login.
+2. **[docs/VERCEL.md](docs/VERCEL.md)** — domain + Vercel settings (no env vars needed today).
+3. **[docs/OUTLET-APP-API.md](docs/OUTLET-APP-API.md)** — callable Functions for the app.
 
-The legacy **Kotlin Android** orders/stocktake/supervisor apps (`Afterten Orders/`, `Shared/`) targeted Supabase and have been removed. Use **afterten-orders-expo** for outlet orders.
+## Expo Go
 
-## Quick start — portal
-
-```bash
-cd afterten-website-portal
-cp .env.example .env.local   # fill Firebase credentials
+```powershell
+cd afterten-orders
+copy .env.example .env
+# fill EXPO_PUBLIC_FIREBASE_* from Firebase Console
 npm install
-npm run dev
+npx expo start
 ```
 
-Vercel root directory: **`afterten-website-portal`**.
+## Cost rules
+
+- No Cloud Scheduler / scheduled catalog sync.
+- Run `node firebase/scripts/audit-no-schedulers.mjs` after every deploy.
+- GCP budget with **disable billing at 100%**.
+- Optional soft pause: Firestore `system/config.operationalPause`.
+
+## Native Android app
+
+There is **no Kotlin/Android orders project** under this repo or `C:\\Projects`. If you still have one elsewhere, delete that folder locally; we are rebuilding on **Expo Go** only.

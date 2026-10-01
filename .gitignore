@@ -1,83 +1,32 @@
-# Android/Gradle
-.gradle/
-local.properties
-/.kotlin/
-/.gradle/
-/build/
-/app/build/
-/app/.cxx/
-/.cxx/
-**/.kotlin/
-**/.gradle/
-**/build/
-**/.cxx/
-**/intermediates/
-**/kspCaches/
-**/generated/
-**/.idea/caches/
-/captures/
-.externalNativeBuild/
-**/obj/
-**/bin/
-pos-sync-service/installation/
-pos-sync-service/installation.rar
-
-# IDEs
-.idea/
-*.iml
-.vscode/
-.fleet/
-
-# Artifacts
-*.apk
-*.ap_
-*.aab
-*.aar
-*.exe
-*.rar
-*.xlsx
-pos-sync-service/publish/
-pos-sync-service/appsettings.till1.json
-pos-sync-service/appsettings.till2.json
-pos-sync-service/appsettings.quickcorner.json
-
-# Logs and dumps
-*.hprof
-*.log
-
-# OS junk
-.DS_Store
-Thumbs.db
-Ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Others
-/out/
-/.settings/
-/node_modules/
+# Dependencies
+node_modules/
 **/node_modules/
-**/.next/
 
-# Env files
+# Firebase
+firebase-debug.log
+firebase-debug.*.log
+.firebaserc
+!firebase/.firebaserc.example
+
+# Functions build
+firebase/functions/lib/
+
+# Env
 .env*
 !.env.example
+afterten-orders/.env
 
-# Legacy Android Gradle secrets (project removed)
-gradle.properties
-**/gradle.properties
-
-# Local OAuth / API secrets (never commit)
+# Secrets (never commit)
 secrets/
-exports/middleware-credentials/
-client_secret_*.json
-**/google-oauth-credentials.txt
 **/*firebase-adminsdk*.json
 **/service-account*.json
-firebase/**/secrets/
 
-# Local Expo app checkout (large; use separate repo or deploy)
-afterten-orders-expo/
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
 
-# Legacy portal folder name (renamed to afterten-website-portal)
-Afterten Website Portal/
+# Legacy leftovers (delete locally if still present)
+afterten-website-portal/
+pos-sync-service/

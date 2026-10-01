@@ -1,111 +1,12 @@
 {
   "indexes": [
     {
-      "collectionGroup": "bills",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "occurredAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "bills",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "shiftId", "order": "ASCENDING" },
-        { "fieldPath": "occurredAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "outlet_catalog_sync_events",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "outlet_catalog_sync_events",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "deliveredAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "pos_sync_failures",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "outlet_cashier_sync_events",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "transfer_orders",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "transfer_orders",
+      "collectionGroup": "outlet_orders",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "outletId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "outlet_order_routes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "itemId", "order": "ASCENDING" },
-        { "fieldPath": "normalizedVariantKey", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "transfer_orders",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "outlet_order_catalog",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "active", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "outlet_damage_reports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "reportedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "outlet_damage_reports",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "outletId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     }
   ],

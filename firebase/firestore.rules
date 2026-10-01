@@ -1,46 +1,28 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
       return request.auth != null;
     }
 
-    function appUser() {
+    function userDoc() {
       return get(/databases/$(database)/documents/app_users/$(request.auth.uid)).data;
     }
 
-    function isActiveAppUser() {
-      return signedIn() && appUser().active == true;
+    function isActiveOutletUser() {
+      return signedIn()
+        && userDoc().active == true
+        && userDoc().outletId is string
+        && userDoc().outletId.size() > 0;
     }
 
-    function isSupervisor() {
-      return isActiveAppUser() &&
-        appUser().roles.hasAny(['supervisor', 'warehouse_admin']);
+    function outletId() {
+      return userDoc().outletId;
     }
 
-    function ownsOutlet(outletId) {
-      return isActiveAppUser() && appUser().outletId == outletId;
-    }
-
-    // POS middleware + portal admin SDK paths remain server-only.
-    match /pos_sales/{outletId}/{document=**} {
-      allow read, write: if false;
-    }
-    match /outlet_heartbeats/{document=**} {
-      allow read, write: if false;
-    }
-    match /pos_sync_failures/{document=**} {
-      allow read, write: if false;
-    }
-    match /outlet_catalog_sync_events/{document=**} {
-      allow read, write: if false;
-    }
-    match /outlet_cashiers/{document=**} {
-      allow read, write: if false;
-    }
-    match /outlet_cashier_sync_events/{document=**} {
-      allow read, write: if false;
+    match /system/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
     }
 
     match /app_users/{uid} {
@@ -48,55 +30,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    match /outlet_order_catalog/{docId} {
-      allow read: if isActiveAppUser() &&
-        (resource.data.outletId == appUser().outletId || isSupervisor());
+    match /outlets/{id} {
+      allow read: if isActiveOutletUser() && id == outletId();
       allow write: if false;
     }
 
-    match /transfer_orders/{orderId} {
-      allow read: if isActiveAppUser() &&
-        (resource.data.outletId == appUser().outletId || isSupervisor());
-      allow create, update, delete: if false;
+    match /catalog_lines/{lineId} {
+      allow read: if isActiveOutletUser() && resource.data.outletId == outletId();
+      allow write: if false;
+    }
+
+    match /outlet_orders/{orderId} {
+      allow read: if isActiveOutletUser() && resource.data.outletId == outletId();
+      allow write: if false;
 
       match /items/{itemId} {
-        allow read: if isActiveAppUser() &&
-          (get(/databases/$(database)/documents/transfer_orders/$(orderId)).data.outletId == appUser().outletId ||
-            isSupervisor());
+        allow read: if isActiveOutletUser()
+          && get(/databases/$(database)/documents/outlet_orders/$(orderId)).data.outletId == outletId();
         allow write: if false;
       }
-    }
-
-    match /transfer_order_counters/{outletId} {
-      allow read: if isActiveAppUser() && appUser().outletId == outletId;
-      allow write: if false;
-    }
-
-    match /uom_options/{docId} {
-      allow read: if isActiveAppUser();
-      allow write: if false;
-    }
-
-    match /outlet_order_routes/{document=**} {
-      allow read, write: if false;
-    }
-
-    match /outlet_damage_reports/{reportId} {
-      allow read: if isActiveAppUser() &&
-        (resource.data.outletId == appUser().outletId || isSupervisor());
-      allow create, update, delete: if false;
-
-      match /lines/{lineId} {
-        allow read: if isActiveAppUser() &&
-          (get(/databases/$(database)/documents/outlet_damage_reports/$(reportId)).data.outletId == appUser().outletId ||
-            isSupervisor());
-        allow write: if false;
-      }
-    }
-
-    match /outlet_damage_counters/{outletId} {
-      allow read: if isActiveAppUser() && appUser().outletId == outletId;
-      allow write: if false;
     }
 
     match /{document=**} {

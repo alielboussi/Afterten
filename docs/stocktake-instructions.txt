@@ -1,6 +1,0 @@
-Stocktake visibility rule (do not change):
-- Ingredients and variants must be shown in the stocktake app even when stock_ledger has no rows.
-- Stocktake lists must NOT rely on stock_ledger to display ingredients or variants.
-- Base finished items should remain hidden in stocktake lists.
-- Raws are excluded from stocktake.
-- Source of visibility should be catalog/outlet mapping (e.g., outlet_products / variants) not stock_ledger.
