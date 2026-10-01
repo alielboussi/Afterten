@@ -12,6 +12,8 @@ Only emails listed in **`portal_admins`** can open `/dashboard`.
 - RPC **`is_outlet_app_user()`** — Expo app should require this after login
 - **`place_outlet_order`** and outlet RLS reject **`is_portal_admin()`** accounts
 - **Make admin** (or seed script) removes any **`app_profiles`** row for that user
+- **`portal_user_profiles.alias`** — display name in the portal header (editable on Portal admins)
+- Click green **Portal admin** on that page to **revoke** (`active = false`); pill turns red **Revoked** and `/dashboard` is blocked via `is_portal_admin()`
 
 ## Add an admin (UI)
 

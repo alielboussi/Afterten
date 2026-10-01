@@ -40,14 +40,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Dashboard admin check runs once in layout (React cache) — skip duplicate RPC here.
   if (user && isProtected) {
-    const { data: isAdmin, error } = await supabase.rpc("is_portal_admin");
-    if (error || !isAdmin) {
-      const denied = request.nextUrl.clone();
-      denied.pathname = "/unauthorized";
-      denied.search = "";
-      return NextResponse.redirect(denied);
-    }
+    return supabaseResponse;
   }
 
   if (user && path === "/login") {

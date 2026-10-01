@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run dev --prefix afterten-orders",
+    "dev:clean": "npm run dev:clean --prefix afterten-orders",
     "portal:build": "npm run build --prefix afterten-orders",
     "supabase:inspect": "node scripts/supabase/inspect.mjs",
     "supabase:query": "node scripts/supabase/query.mjs",

@@ -1,14 +1,12 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap");
-
 :root {
   --afterten-red: #c41e3a;
   --afterten-blue: #1e3a8a;
   --afterten-green: #15803d;
-  --afterten-bg: #ffffff;
-  --afterten-muted: #64748b;
-  --afterten-border: #e2e8f0;
-  --afterten-text: #0f172a;
-  --sidebar-width: 240px;
+  --afterten-bg: #fffbf7;
+  --afterten-muted: #78716c;
+  --afterten-border: #e7e5e4;
+  --afterten-text: #292524;
+  --sidebar-width: 158px;
 }
 
 * {
@@ -19,9 +17,10 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: var(--font-plus-jakarta), system-ui, -apple-system, sans-serif;
   background: var(--afterten-bg);
   color: var(--afterten-text);
+  -webkit-font-smoothing: antialiased;
 }
 
 a {

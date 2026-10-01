@@ -2,7 +2,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--afterten-bg);
 }
 
 .topBanner {
@@ -25,14 +25,14 @@
 
 .header {
   border-bottom: 1px solid var(--afterten-border);
-  background: #fff;
+  background: #fffbf7;
 }
 
 .headerInner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 24px;
+  justify-content: center;
+  padding: 16px 24px;
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
@@ -40,8 +40,9 @@
 
 .brand {
   font-weight: 700;
-  color: var(--afterten-blue);
-  font-size: 1.1rem;
+  color: #7c2d12;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
 }
 
 .userEmail {
@@ -61,53 +62,131 @@
   width: var(--sidebar-width);
   flex-shrink: 0;
   border-right: 1px solid var(--afterten-border);
-  background: #fff;
-  padding: 20px 12px;
+  background: linear-gradient(180deg, #fffbf7 0%, #fff7ed 100%);
+  padding: 10px 6px 14px;
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 53px);
+  gap: 12px;
+}
+
+.welcomeBanner {
+  padding: 10px 8px 9px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #9a3412 0%, #c2410c 55%, #ea580c 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgb(234 88 12 / 25%);
+  text-align: center;
+}
+
+.welcomeLabel {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+.welcomeName {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.navLink {
-  padding: 10px 12px;
-  border-radius: 8px;
+.navPill {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 999px;
   text-decoration: none;
-  font-weight: 500;
-  color: var(--afterten-text);
+  font-weight: 600;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: #9a3412;
+  background: rgb(255 255 255 / 70%);
+  border: 1px solid #fed7aa;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+  text-align: center;
 }
 
-.navLink:hover {
-  background: #f1f5f9;
+.navPill span {
+  display: block;
+}
+
+.navPillPending {
+  opacity: 0.65;
+}
+
+.navPill:hover {
+  background: #ffedd5;
+  box-shadow: 0 2px 8px rgb(234 88 12 / 12%);
+}
+
+.navPillActive {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  background: linear-gradient(135deg, #ea580c, #c2410c);
+  color: #fff;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 12px rgb(234 88 12 / 30%);
+  transition: filter 0.15s ease;
+  text-align: center;
+}
+
+.navPillActive:hover {
+  color: #fff;
+  filter: brightness(1.03);
 }
 
 .signOutWrap {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 8px;
 }
 
-.signOut {
+.signOutPill {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--afterten-border);
-  border-radius: 8px;
+  padding: 8px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
   background: #fff;
   color: var(--afterten-red);
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.72rem;
   cursor: pointer;
+  font-family: inherit;
 }
 
-.signOut:hover {
+.signOutPill:hover {
   background: #fef2f2;
 }
 
 .main {
   flex: 1;
-  padding: 24px;
-  background: #fff;
+  padding: 32px 28px 48px;
+  background: var(--afterten-bg);
+  display: flex;
+  justify-content: center;
+}
+
+.mainInner {
+  width: 100%;
+  flex: 1;
 }

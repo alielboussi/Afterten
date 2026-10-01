@@ -1,46 +1,8 @@
-import { requirePortalAdmin } from "@/lib/portal/require-portal-admin";
-import { createAdminClient } from "@/lib/supabase/admin-server";
-import { MakeAdminButton } from "./MakeAdminButton";
+import { getPortalAdminsListData } from "@/lib/portal/admins-list-cache";
+import { AdminAccessControl } from "./AdminAccessControl";
+import { AliasField } from "./AliasField";
+import page from "@/app/dashboard/dashboard-page.module.css";
 import styles from "./admins.module.css";
-
-type ListedUser = {
-  id: string;
-  email: string;
-  createdAt: string;
-  lastSignIn: string | null;
-};
-
-async function listAuthUsers(): Promise<ListedUser[]> {
-  const admin = createAdminClient();
-  const users: ListedUser[] = [];
-  let page = 1;
-
-  while (page <= 20) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw new Error(error.message);
-    for (const u of data.users) {
-      if (!u.email) continue;
-      users.push({
-        id: u.id,
-        email: u.email,
-        createdAt: u.created_at,
-        lastSignIn: u.last_sign_in_at ?? null,
-      });
-    }
-    if (data.users.length < 200) break;
-    page += 1;
-  }
-
-  users.sort((a, b) => a.email.localeCompare(b.email));
-  return users;
-}
-
-async function loadAdminUserIds(): Promise<Set<string>> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("portal_admins").select("user_id").eq("active", true);
-  if (error) throw new Error(error.message);
-  return new Set((data ?? []).map((row) => row.user_id as string));
-}
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -48,29 +10,32 @@ function formatDate(iso: string | null) {
 }
 
 export default async function AdminsPage() {
-  await requirePortalAdmin();
-
-  let users: ListedUser[] = [];
-  let adminIds = new Set<string>();
+  let users: Awaited<ReturnType<typeof getPortalAdminsListData>>["users"] = [];
+  let adminAccess: Record<string, "none" | "active" | "revoked"> = {};
+  let aliases: Record<string, string> = {};
   let loadError: string | null = null;
 
   try {
-    [users, adminIds] = await Promise.all([listAuthUsers(), loadAdminUserIds()]);
+    const data = await getPortalAdminsListData();
+    users = data.users;
+    adminAccess = data.adminAccess;
+    aliases = data.aliases;
   } catch (e) {
     loadError = e instanceof Error ? e.message : "Could not load users.";
   }
 
   return (
-    <>
-      <h1 className={styles.pageTitle}>Portal admins</h1>
-      <p className={styles.lead}>
+    <div className={page.pageShellWide}>
+      <h1 className={page.pageTitle}>Portal Admins</h1>
+      <p className={page.lead}>
         Users appear here after they sign in with Google at least once. Click{" "}
-        <strong>Make admin</strong> for dashboard-only access. That removes any outlet app profile
-        for the same account — admins must not use Expo Go.
+        <strong>Make admin</strong> for dashboard-only access. Click a green{" "}
+        <strong>Portal admin</strong> pill to revoke. Set an <strong>alias</strong> per user (welcome
+        banner and portal display). Outlet app access is removed when granting admin.
       </p>
 
       {loadError && (
-        <p className={styles.lead} style={{ color: "var(--afterten-red)" }}>
+        <p className={page.msgErr}>
           {loadError}
           {loadError.includes("SUPABASE_SERVICE_ROLE_KEY")
             ? " Add SUPABASE_SERVICE_ROLE_KEY to afterten-orders/.env.local (server only)."
@@ -78,15 +43,17 @@ export default async function AdminsPage() {
         </p>
       )}
 
-      <div className={styles.tableWrap}>
+      <div className={page.card}>
         {!loadError && users.length === 0 && (
           <p className={styles.empty}>No signed-in users yet. Ask them to use Continue with Google once.</p>
         )}
         {!loadError && users.length > 0 && (
-          <table className={styles.table}>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
             <thead>
               <tr>
                 <th>Email</th>
+                <th>Alias</th>
                 <th>First signed in</th>
                 <th>Last sign-in</th>
                 <th>Access</th>
@@ -96,17 +63,25 @@ export default async function AdminsPage() {
               {users.map((u) => (
                 <tr key={u.id}>
                   <td>{u.email}</td>
+                  <td>
+                    <AliasField userId={u.id} initialAlias={aliases[u.id] ?? ""} />
+                  </td>
                   <td>{formatDate(u.createdAt)}</td>
                   <td>{formatDate(u.lastSignIn)}</td>
                   <td>
-                    <MakeAdminButton userId={u.id} email={u.email} isAdmin={adminIds.has(u.id)} />
+                    <AdminAccessControl
+                      userId={u.id}
+                      email={u.email}
+                      access={adminAccess[u.id] ?? "none"}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

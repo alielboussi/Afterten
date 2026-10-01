@@ -1,20 +1,5 @@
-.pageTitle {
-  margin: 0 0 8px;
-  color: var(--afterten-blue);
-}
-
-.lead {
-  margin: 0 0 20px;
-  color: var(--afterten-muted);
-  max-width: 52rem;
-  line-height: 1.5;
-}
-
 .tableWrap {
   overflow-x: auto;
-  border: 1px solid var(--afterten-border);
-  border-radius: 10px;
-  background: #fff;
 }
 
 .table {
@@ -28,24 +13,57 @@
   text-align: left;
   padding: 12px 14px;
   border-bottom: 1px solid var(--afterten-border);
+  vertical-align: middle;
 }
 
 .table th {
   font-weight: 600;
   color: var(--afterten-muted);
-  background: #f8fafc;
+  background: #fff7ed;
+  text-align: center;
+}
+
+.table td {
+  text-align: center;
+}
+
+.table td:has(.aliasCell),
+.table td:has(.actionCell) {
+  text-align: left;
 }
 
 .table tr:last-child td {
   border-bottom: none;
 }
 
-.badgeAdmin {
+.badgeAdminBtn {
   display: inline-block;
   padding: 4px 10px;
   border-radius: 999px;
+  border: none;
   background: #ecfdf5;
   color: var(--afterten-green);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.badgeAdminBtn:hover:not(:disabled) {
+  background: #d1fae5;
+}
+
+.badgeAdminBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.badgeRevoked {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef2f2;
+  color: var(--afterten-red);
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -53,16 +71,18 @@
 .makeAdminBtn {
   padding: 8px 14px;
   border: none;
-  border-radius: 8px;
-  background: var(--afterten-blue);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ea580c, #c2410c);
   color: #fff;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  font-family: inherit;
+  font-size: 0.85rem;
 }
 
 .makeAdminBtn:hover:not(:disabled) {
-  background: #1e40af;
+  filter: brightness(1.05);
 }
 
 .makeAdminBtn:disabled {
@@ -73,17 +93,47 @@
 .actionCell {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
+}
+
+.aliasCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 10rem;
+  align-items: stretch;
+}
+
+.aliasInput {
+  width: 100%;
+  max-width: 14rem;
+  padding: 6px 10px;
+  border: 1px solid var(--afterten-border);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.aliasInput:focus {
+  outline: 2px solid #ea580c;
+  outline-offset: 1px;
 }
 
 .inlineOk {
   font-size: 0.8rem;
   color: var(--afterten-green);
+}
+
+.inlineErr {
+  font-size: 0.8rem;
+  color: var(--afterten-red);
   max-width: 14rem;
+  text-align: center;
 }
 
 .empty {
-  padding: 24px;
+  padding: 8px 0;
   color: var(--afterten-muted);
+  text-align: center;
 }

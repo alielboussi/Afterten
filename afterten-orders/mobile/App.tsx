@@ -6,8 +6,8 @@ export default function App() {
     <View style={styles.container}>
       <Text style={styles.title}>Afterten Orders</Text>
       <Text style={styles.sub}>
-        Expo Go shell — flow will be implemented after your spec. Firebase backend only; no Vercel
-        API.
+        Outlet staff sign in with email + password only (accounts created in the portal). No Google
+        sign-in on this app.
       </Text>
       <StatusBar style="auto" />
     </View>

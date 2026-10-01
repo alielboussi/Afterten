@@ -56,3 +56,12 @@ npm run dev
 ```
 
 Open http://localhost:3000/login
+
+**Dev error** (`SegmentViewNode` / `React Client Manifest` / `__webpack_modules__ is not a function`): stale `.next` cache on Windows, often after saving on **Portal admins**. Stop dev, then:
+
+```powershell
+cd C:\Projects\Afterten\afterten-orders
+npm run dev:clean
+```
+
+Or delete the `afterten-orders/.next` folder manually and run `npm run dev` again. Production `npm run build` is unaffected.
