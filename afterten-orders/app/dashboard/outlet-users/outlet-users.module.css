@@ -131,6 +131,46 @@
   border-bottom: none;
 }
 
+.passwordCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.passwordValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+.passwordEmpty {
+  color: var(--afterten-muted);
+}
+
+.passwordToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--afterten-muted);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.passwordToggle:hover {
+  color: var(--afterten-red);
+  background: var(--afterten-red-soft);
+}
+
+.passwordToggle:focus-visible {
+  outline: 2px solid var(--afterten-red);
+  outline-offset: 1px;
+}
+
 .badgeActive {
   display: inline-block;
   padding: 3px 10px;

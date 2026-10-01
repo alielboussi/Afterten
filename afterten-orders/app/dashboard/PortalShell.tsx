@@ -12,6 +12,7 @@ type Props = {
 
 export function PortalShell({ welcomeName, children }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarReady, setSidebarReady] = useState(false);
 
   useEffect(() => {
     try {
@@ -20,6 +21,7 @@ export function PortalShell({ welcomeName, children }: Props) {
     } catch {
       /* ignore */
     }
+    setSidebarReady(true);
   }, []);
 
   function toggleSidebar() {
@@ -35,7 +37,11 @@ export function PortalShell({ welcomeName, children }: Props) {
   }
 
   return (
-    <div className={`at-portal-shell${sidebarOpen ? "" : " at-portal-sidebarClosed"}`}>
+    <div
+      className={`at-portal-shell${
+        sidebarReady && !sidebarOpen ? " at-portal-sidebarClosed" : ""
+      }`}
+    >
       <header className="at-portal-header">
         <div className="at-portal-headerInner">
           <p className="at-portal-welcomePulse">

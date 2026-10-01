@@ -109,6 +109,7 @@ export async function createOutletUser(input: CreateOutletUserInput) {
       profile_kind: "outlet_app",
       roles: ["branch"],
       active: true,
+      outlet_app_password: password,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },
@@ -217,16 +218,27 @@ export async function updateOutletUser(input: UpdateOutletUserInput) {
     if (authError) return { ok: false as const, error: authError.message };
   }
 
-  const { error: profileError } = await admin
-    .from("app_profiles")
-    .update({
+  const profileUpdate: {
+    email: string;
+    outlet_id: string;
+    outlet_name: string;
+    alias: string;
+    active: boolean;
+    updated_at: string;
+    outlet_app_password?: string;
+  } = {
       email,
       outlet_id: outletId,
       outlet_name: outletName,
       alias,
       active: input.active,
       updated_at: new Date().toISOString(),
-    })
+    };
+  if (password.length >= 6) profileUpdate.outlet_app_password = password;
+
+  const { error: profileError } = await admin
+    .from("app_profiles")
+    .update(profileUpdate)
     .eq("user_id", userId)
     .eq("profile_kind", "outlet_app");
 

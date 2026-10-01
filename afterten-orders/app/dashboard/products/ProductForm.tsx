@@ -85,7 +85,6 @@ export function ProductForm(props: Props) {
       return;
     }
     router.push(returnPath);
-    router.refresh();
   }
 
   return (

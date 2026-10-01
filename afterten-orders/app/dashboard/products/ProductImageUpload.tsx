@@ -1,7 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { uploadProductImage } from "./actions";
 import styles from "./product-styles";
 
@@ -22,9 +21,12 @@ export function ProductImageUpload({
   layout: layoutProp,
 }: Props) {
   const layout = layoutProp ?? (compact ? "compact" : "default");
-  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(imageUrl);
+
+  useEffect(() => {
+    setPreview(imageUrl);
+  }, [imageUrl]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +50,6 @@ export function ProductImageUpload({
     }
 
     setPreview(result.imageUrl);
-    router.refresh();
   }
 
   if (layout === "card") {

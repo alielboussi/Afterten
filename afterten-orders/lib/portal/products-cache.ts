@@ -16,6 +16,7 @@ export type ProductRow = {
   qtyStep: number;
   minOrderQty: number | null;
   maxOrderQty: number | null;
+  hasVariants: boolean;
 };
 
 function mapProduct(row: Record<string, unknown>): ProductRow {
@@ -32,11 +33,12 @@ function mapProduct(row: Record<string, unknown>): ProductRow {
     qtyStep: Number(row.qty_step ?? 1),
     minOrderQty: row.min_order_qty != null ? Number(row.min_order_qty) : null,
     maxOrderQty: row.max_order_qty != null ? Number(row.max_order_qty) : null,
+    hasVariants: Boolean(row.has_variants),
   };
 }
 
 const productSelect =
-  "id, product_id, name, uom, unit_cost, image_url, active, live_qty_gate_enabled, sort_order, qty_step, min_order_qty, max_order_qty";
+  "id, product_id, name, uom, unit_cost, image_url, active, live_qty_gate_enabled, sort_order, qty_step, min_order_qty, max_order_qty, has_variants";
 
 async function fetchProductsList(): Promise<ProductRow[]> {
   const admin = createAdminClient();

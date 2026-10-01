@@ -10,6 +10,7 @@ export type OutletStaffRow = {
   outletId: string;
   outletName: string;
   active: boolean;
+  outletAppPassword: string | null;
 };
 
 export type OutletOption = { id: string; name: string };
@@ -18,7 +19,7 @@ async function fetchOutletStaffList(): Promise<OutletStaffRow[]> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("app_profiles")
-    .select("user_id, email, alias, outlet_id, outlet_name, active")
+    .select("user_id, email, alias, outlet_id, outlet_name, active, outlet_app_password")
     .eq("profile_kind", "outlet_app")
     .order("outlet_id")
     .order("email");
@@ -30,6 +31,7 @@ async function fetchOutletStaffList(): Promise<OutletStaffRow[]> {
     outletId: row.outlet_id as string,
     outletName: row.outlet_name as string,
     active: row.active as boolean,
+    outletAppPassword: (row.outlet_app_password as string | null) ?? null,
   }));
 }
 
@@ -45,7 +47,7 @@ async function fetchActiveOutlets(): Promise<OutletOption[]> {
 }
 
 export function getCachedOutletStaffList() {
-  return unstable_cache(fetchOutletStaffList, ["outlet-staff-list-v2"], {
+  return unstable_cache(fetchOutletStaffList, ["outlet-staff-list-v3"], {
     revalidate: 60,
     tags: ["outlet-users-list"],
   })();

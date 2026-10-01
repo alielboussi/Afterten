@@ -32,6 +32,37 @@ export type OutletProfile = {
   outlet_name: string;
   active: boolean;
   profile_kind: string;
+  outlets?: { name: string } | { name: string }[] | null;
+};
+
+export function getOutletDisplayName(profile: OutletProfile): string {
+  const fromProfile = profile.outlet_name?.trim();
+  if (fromProfile) return fromProfile;
+
+  const outletJoin = profile.outlets;
+  const outletRecord = Array.isArray(outletJoin) ? outletJoin[0] : outletJoin;
+  const fromOutlet = outletRecord?.name?.trim();
+  if (fromOutlet) return fromOutlet;
+
+  const fromAlias = profile.alias?.trim();
+  if (fromAlias) return fromAlias;
+
+  const local = profile.email.split("@")[0]?.trim();
+  return local || "Outlet";
+}
+
+export type OutletProductVariant = {
+  variant_id: string;
+  name: string;
+  uom: string;
+  unit_cost: number;
+  image_url: string | null;
+  live_qty_gate_enabled: boolean;
+  live_qty: number | null;
+  orderable: boolean;
+  qty_step: number;
+  min_order_qty: number | null;
+  max_order_qty: number | null;
 };
 
 export type OutletProduct = {
@@ -46,23 +77,66 @@ export type OutletProduct = {
   qty_step: number;
   min_order_qty: number | null;
   max_order_qty: number | null;
+  has_variants: boolean;
+  variants: OutletProductVariant[];
 };
 
-export function clampOrderQty(
-  product: OutletProduct,
-  qty: number,
-): number {
+export type OrderQtyLine = Pick<
+  OutletProduct,
+  "qty_step" | "min_order_qty" | "max_order_qty"
+>;
+
+export function clampOrderQty(line: OrderQtyLine, qty: number): number {
   let next = qty;
-  const step = product.qty_step > 0 ? product.qty_step : 1;
-  if (product.min_order_qty != null && next < product.min_order_qty) {
-    next = product.min_order_qty;
+  const step = line.qty_step > 0 ? line.qty_step : 1;
+  if (line.min_order_qty != null && next < line.min_order_qty) {
+    next = line.min_order_qty;
   }
-  if (product.max_order_qty != null && next > product.max_order_qty) {
-    next = product.max_order_qty;
+  if (line.max_order_qty != null && next > line.max_order_qty) {
+    next = line.max_order_qty;
   }
   if (next <= 0) return 0;
   const steps = Math.round(next / step);
-  return Math.max(steps * step, product.min_order_qty ?? step);
+  return Math.max(steps * step, line.min_order_qty ?? step);
+}
+
+function mapVariant(raw: Record<string, unknown>): OutletProductVariant {
+  return {
+    variant_id: String(raw.variant_id),
+    name: String(raw.name),
+    uom: String(raw.uom),
+    unit_cost: Number(raw.unit_cost),
+    image_url: (raw.image_url as string | null) ?? null,
+    live_qty_gate_enabled: Boolean(raw.live_qty_gate_enabled),
+    live_qty: raw.live_qty != null ? Number(raw.live_qty) : null,
+    orderable: Boolean(raw.orderable),
+    qty_step: Number(raw.qty_step ?? 1),
+    min_order_qty: raw.min_order_qty != null ? Number(raw.min_order_qty) : null,
+    max_order_qty: raw.max_order_qty != null ? Number(raw.max_order_qty) : null,
+  };
+}
+
+function mapOutletProduct(raw: Record<string, unknown>): OutletProduct {
+  const variantsRaw = raw.variants;
+  const variants = Array.isArray(variantsRaw)
+    ? variantsRaw.map((v) => mapVariant(v as Record<string, unknown>))
+    : [];
+
+  return {
+    product_id: String(raw.product_id),
+    name: String(raw.name),
+    uom: String(raw.uom),
+    unit_cost: Number(raw.unit_cost),
+    image_url: (raw.image_url as string | null) ?? null,
+    live_qty_gate_enabled: Boolean(raw.live_qty_gate_enabled),
+    live_qty: raw.live_qty != null ? Number(raw.live_qty) : null,
+    orderable: Boolean(raw.orderable),
+    qty_step: Number(raw.qty_step ?? 1),
+    min_order_qty: raw.min_order_qty != null ? Number(raw.min_order_qty) : null,
+    max_order_qty: raw.max_order_qty != null ? Number(raw.max_order_qty) : null,
+    has_variants: Boolean(raw.has_variants),
+    variants,
+  };
 }
 
 export async function fetchOutletProducts(
@@ -70,7 +144,8 @@ export async function fetchOutletProducts(
 ): Promise<{ products: OutletProduct[]; error: string | null }> {
   const { data, error } = await supabase.rpc("list_outlet_products");
   if (error) return { products: [], error: error.message };
-  return { products: (data ?? []) as OutletProduct[], error: null };
+  const products = (data ?? []).map((row: Record<string, unknown>) => mapOutletProduct(row));
+  return { products, error: null };
 }
 
 export async function fetchOutletProfile(
@@ -85,7 +160,9 @@ export async function fetchOutletProfile(
 
   const { data, error } = await supabase
     .from("app_profiles")
-    .select("user_id, email, alias, outlet_id, outlet_name, active, profile_kind")
+    .select(
+      "user_id, email, alias, outlet_id, outlet_name, active, profile_kind, outlets ( name )",
+    )
     .eq("profile_kind", "outlet_app")
     .maybeSingle();
 
@@ -93,5 +170,13 @@ export async function fetchOutletProfile(
   if (!data) return { profile: null, error: "No outlet profile for this account." };
   if (!data.active) return { profile: null, error: "This outlet account is disabled." };
 
-  return { profile: data as OutletProfile, error: null };
+  const profile = data as OutletProfile;
+  if (!profile.outlet_name?.trim()) {
+    const { data: rpcName } = await supabase.rpc("outlet_app_display_name");
+    if (typeof rpcName === "string" && rpcName.trim()) {
+      return { profile: { ...profile, outlet_name: rpcName.trim() }, error: null };
+    }
+  }
+
+  return { profile, error: null };
 }

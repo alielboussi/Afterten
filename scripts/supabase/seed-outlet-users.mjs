@@ -109,6 +109,7 @@ async function seedOne(admin, { outletName, outletId, email, password, alias }) 
       profile_kind: "outlet_app",
       roles: ["branch"],
       active: true,
+      outlet_app_password: password,
       updated_at: now,
     },
     { onConflict: "user_id" },

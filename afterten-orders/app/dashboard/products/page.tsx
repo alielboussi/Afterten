@@ -28,9 +28,11 @@ export default async function ProductsPage() {
       {loadError && (
         <p className="at-page-msgErr">
           {loadError}
-          {loadError.includes("products") || loadError.includes("relation")
-            ? " Run migration 20261001180000_products_catalog.sql on Supabase."
-            : null}
+          {loadError.includes("has_variants")
+            ? " Run migration 20261001220000_product_variants_hide_rule_additions.sql on Supabase."
+            : loadError.includes("products") || loadError.includes("relation")
+              ? " Run migration 20261001180000_products_catalog.sql on Supabase."
+              : null}
         </p>
       )}
 

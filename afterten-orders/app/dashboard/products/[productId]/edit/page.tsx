@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCachedProduct } from "@/lib/portal/products-cache";
 import { ProductForm } from "../../ProductForm";
+import { ProductVariantsEditor } from "../../ProductVariantsEditor";
 
 type Props = {
   params: Promise<{ productId: string }>;
@@ -49,6 +50,16 @@ export default async function EditProductPage({ params }: Props) {
               minOrderQty: product.minOrderQty,
               maxOrderQty: product.maxOrderQty,
             }}
+          />
+        </section>
+      ) : null}
+
+      {product ? (
+        <section className="at-page-card" style={{ marginTop: 16 }}>
+          <ProductVariantsEditor
+            productDbId={product.id}
+            parentProductId={product.productId}
+            hasVariants={product.hasVariants}
           />
         </section>
       ) : null}

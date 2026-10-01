@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCachedOutletStaffList } from "@/lib/portal/outlet-data-cache";
+import { OutletUsersTable } from "./OutletUsersTable";
 import styles from "@/app/dashboard/outlet-users/outlet-users.module.css";
 
 export default async function OutletUsersPage() {
@@ -38,47 +39,7 @@ export default async function OutletUsersPage() {
           {staff.length === 0 ? (
             <p className={styles.muted}>No outlet users yet. Click Create new to add one.</p>
           ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Outlet</th>
-                    <th>Email</th>
-                    <th>Status</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {staff.map((s) => (
-                    <tr key={s.userId}>
-                      <td>{s.alias ?? s.outletName ?? "—"}</td>
-                      <td>{s.email}</td>
-                      <td>
-                        <span className={s.active ? styles.badgeActive : styles.badgeOff}>
-                          {s.active ? "Active" : "Disabled"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className={styles.actionCell}>
-                          <Link
-                            href={`/dashboard/outlet-users/${s.userId}/products`}
-                            className={styles.productsBtn}
-                          >
-                            Products
-                          </Link>
-                          <Link
-                            href={`/dashboard/outlet-users/${s.userId}/edit`}
-                            className={styles.editBtn}
-                          >
-                            Edit
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <OutletUsersTable staff={staff} />
           )}
         </section>
       )}

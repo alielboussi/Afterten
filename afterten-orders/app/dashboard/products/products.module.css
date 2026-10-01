@@ -610,3 +610,63 @@
   font-size: 0.78rem;
   font-weight: 600;
 }
+
+.variantsSection {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--afterten-border);
+}
+
+.variantsTitle {
+  text-align: center;
+  font-size: 1.15rem;
+  margin: 0 0 8px;
+}
+
+.variantsSubTitle {
+  text-align: center;
+  font-size: 1rem;
+  margin: 12px 0 8px;
+}
+
+.variantList {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.variantListItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--afterten-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.variantMeta {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--afterten-muted);
+  margin-top: 4px;
+}
+
+.variantListActions {
+  display: flex;
+  gap: 8px;
+}
+
+.variantForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--afterten-border);
+}
