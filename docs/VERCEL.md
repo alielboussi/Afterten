@@ -5,11 +5,18 @@
 | Setting | Value |
 |---------|--------|
 | **Root directory** | `afterten-orders` |
-| **Framework preset** | **Other** (not Next.js — this repo is Expo + static `public/`) |
-| **Install command** | *(override in `vercel.json` — no-op)* |
-| **Build command** | *(override in `vercel.json` — no-op)* |
-| **Output directory** | `public` |
+| **Framework preset** | **Next.js** (auto-detected) |
+| **Build command** | `npm run build` (default) |
+| **Output** | Next.js default |
 | **Production domain** | `https://aftertentransfers.app/` |
+
+**Environment variables** (Production + Preview):
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server only — **Portal admins** page; not `NEXT_PUBLIC_`)
+
+See **[docs/PORTAL-GOOGLE-AUTH.md](../docs/PORTAL-GOOGLE-AUTH.md)** for Google OAuth setup.
 
 This deployment is intentionally **tiny**: a static landing page only. The **Expo Go** app talks **directly to Firebase** — not through Vercel.
 

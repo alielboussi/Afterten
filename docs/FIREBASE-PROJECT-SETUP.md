@@ -20,7 +20,7 @@ Do these steps **in order**. Do not deploy Functions until the **budget action**
 | Product | Action |
 |---------|--------|
 | **Authentication** | Sign-in → **Email/Password** → Enable |
-| **Firestore** | Create database → **Production mode** → region **`africa-south1`** (matches Functions in this repo) |
+| **Firestore** | Create database → **Production mode** → **single region** **`us-central1` (Iowa)** — not multi-region (see `functions/src/region.ts`; change both together if you pick another single region) |
 | **Storage** | Get started → default bucket, prefer same region |
 | **Functions** | Enabled automatically on first deploy from CLI |
 

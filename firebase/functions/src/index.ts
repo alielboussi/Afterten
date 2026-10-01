@@ -9,17 +9,16 @@ import {
   placeOutletOrder,
 } from "./orders";
 import { ensureSystemConfigDoc } from "./system";
+import { FUNCTIONS_REGION } from "./region";
 
 initializeApp();
 
-const REGION = "africa-south1";
-
-export const health = onCall({ region: REGION }, async () => {
+export const health = onCall({ region: FUNCTIONS_REGION }, async () => {
   await ensureSystemConfigDoc();
   return {
     ok: true,
     service: "afterten-outlet-orders",
-    region: REGION,
+    region: FUNCTIONS_REGION,
     at: new Date().toISOString(),
   };
 });

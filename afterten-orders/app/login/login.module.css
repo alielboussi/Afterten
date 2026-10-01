@@ -1,0 +1,155 @@
+.wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f8fafc;
+}
+
+.banner {
+  display: flex;
+  width: min(420px, 100%);
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.stripeRed {
+  flex: 1;
+  background: var(--afterten-red);
+}
+.stripeBlue {
+  flex: 1;
+  background: var(--afterten-blue);
+}
+.stripeGreen {
+  flex: 1;
+  background: var(--afterten-green);
+}
+
+.card {
+  width: min(420px, 100%);
+  background: #fff;
+  border: 1px solid var(--afterten-border);
+  border-radius: 12px;
+  padding: 32px 28px 28px;
+  box-shadow: 0 4px 24px rgb(15 23 42 / 6%);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--afterten-blue);
+}
+
+.sub {
+  margin: 0;
+  color: var(--afterten-muted);
+  font-size: 0.95rem;
+}
+
+.error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.875rem;
+}
+
+.googleBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border: 1px solid var(--afterten-border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.googleBtn:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.googleBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--afterten-muted);
+  font-size: 0.8rem;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--afterten-border);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.input {
+  padding: 10px 12px;
+  border: 1px solid var(--afterten-border);
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.input:focus {
+  outline: 2px solid var(--afterten-blue);
+  outline-offset: 1px;
+}
+
+.primaryBtn {
+  margin-top: 4px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--afterten-blue);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: #1e40af;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}

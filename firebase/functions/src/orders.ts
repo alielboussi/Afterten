@@ -5,7 +5,7 @@ import { formatOrderNumber, requireBranchUser } from "./auth-context";
 import { assertOperationsNotPaused } from "./system";
 import { COLLECTIONS, type OutletOrderDoc, type OutletOrderItemDoc } from "./schema";
 
-const REGION = "africa-south1";
+import { FUNCTIONS_REGION } from "./region";
 
 type PlaceItemInput = {
   productId?: string | null;
@@ -43,7 +43,7 @@ function normalizeItems(raw: PlaceItemInput[]): OutletOrderItemDoc[] {
   return items;
 }
 
-export const peekNextOrderNumber = onCall({ region: REGION }, async (request) => {
+export const peekNextOrderNumber = onCall({ region: FUNCTIONS_REGION }, async (request) => {
   await assertOperationsNotPaused();
   const profile = await requireBranchUser(String(request.auth?.uid ?? ""));
   const counterRef = getFirestore().collection(COLLECTIONS.outletOrderCounters).doc(profile.outletId);
@@ -55,7 +55,7 @@ export const peekNextOrderNumber = onCall({ region: REGION }, async (request) =>
   };
 });
 
-export const placeOutletOrder = onCall({ region: REGION }, async (request) => {
+export const placeOutletOrder = onCall({ region: FUNCTIONS_REGION }, async (request) => {
   await assertOperationsNotPaused();
   const profile = await requireBranchUser(String(request.auth?.uid ?? ""));
   const employeeName = String(request.data?.employeeName ?? "").trim();
@@ -117,7 +117,7 @@ export const placeOutletOrder = onCall({ region: REGION }, async (request) => {
   return result;
 });
 
-export const listOutletOrders = onCall({ region: REGION }, async (request) => {
+export const listOutletOrders = onCall({ region: FUNCTIONS_REGION }, async (request) => {
   await assertOperationsNotPaused();
   const profile = await requireBranchUser(String(request.auth?.uid ?? ""));
   const statuses = request.data?.statuses;
@@ -145,7 +145,7 @@ export const listOutletOrders = onCall({ region: REGION }, async (request) => {
   };
 });
 
-export const completeOutletOrder = onCall({ region: REGION }, async (request) => {
+export const completeOutletOrder = onCall({ region: FUNCTIONS_REGION }, async (request) => {
   await assertOperationsNotPaused();
   const profile = await requireBranchUser(String(request.auth?.uid ?? ""));
   const orderId = String(request.data?.orderId ?? "").trim();
@@ -189,7 +189,7 @@ export const completeOutletOrder = onCall({ region: REGION }, async (request) =>
   return { orderId, status: "completed" };
 });
 
-export const getSignatureUploadUrl = onCall({ region: REGION }, async (request) => {
+export const getSignatureUploadUrl = onCall({ region: FUNCTIONS_REGION }, async (request) => {
   await assertOperationsNotPaused();
   const profile = await requireBranchUser(String(request.auth?.uid ?? ""));
   const path = String(request.data?.path ?? "").trim();

@@ -20,6 +20,7 @@ afterten-orders/.env
 secrets/
 **/*firebase-adminsdk*.json
 **/service-account*.json
+secrets/supabase.env
 
 # OS / IDE
 .DS_Store

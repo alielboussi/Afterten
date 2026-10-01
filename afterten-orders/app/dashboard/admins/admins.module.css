@@ -1,0 +1,89 @@
+.pageTitle {
+  margin: 0 0 8px;
+  color: var(--afterten-blue);
+}
+
+.lead {
+  margin: 0 0 20px;
+  color: var(--afterten-muted);
+  max-width: 52rem;
+  line-height: 1.5;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--afterten-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.925rem;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--afterten-border);
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--afterten-muted);
+  background: #f8fafc;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.badgeAdmin {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: var(--afterten-green);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.makeAdminBtn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--afterten-blue);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.makeAdminBtn:hover:not(:disabled) {
+  background: #1e40af;
+}
+
+.makeAdminBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.actionCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.inlineOk {
+  font-size: 0.8rem;
+  color: var(--afterten-green);
+  max-width: 14rem;
+}
+
+.empty {
+  padding: 24px;
+  color: var(--afterten-muted);
+}

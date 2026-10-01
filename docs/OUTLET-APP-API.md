@@ -1,6 +1,6 @@
 # Outlet Orders app — Firebase integration
 
-Region for callables: **`africa-south1`**.
+Region for callables: **`us-central1`** by default — must match Firestore (`firebase/functions/src/region.ts`).
 
 ## Authentication
 

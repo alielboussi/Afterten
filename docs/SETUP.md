@@ -7,7 +7,7 @@ Do this **before** linking the Android app or deploying Functions.
 1. [Google Cloud Console](https://console.cloud.google.com/) → **New project** (e.g. `afterten-outlet-orders`).
 2. [Firebase Console](https://console.firebase.google.com/) → **Add project** → select that GCP project.
 3. **Authentication** → Sign-in method → enable **Email/Password**.
-4. **Firestore** → Create database → **production mode** → pick one region (e.g. `africa-south1` to match Functions in this repo).
+4. **Firestore** → Create database → **production mode** → **single region `us-central1` (Iowa)** — not multi-region; must match `firebase/functions/src/region.ts`.
 5. **Storage** → Get started → same region as Firestore if possible.
 
 ## 2. Billing budget (stop spend, don’t accumulate)

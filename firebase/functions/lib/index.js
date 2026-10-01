@@ -13,14 +13,14 @@ Object.defineProperty(exports, "listOutletOrders", { enumerable: true, get: func
 Object.defineProperty(exports, "peekNextOrderNumber", { enumerable: true, get: function () { return orders_1.peekNextOrderNumber; } });
 Object.defineProperty(exports, "placeOutletOrder", { enumerable: true, get: function () { return orders_1.placeOutletOrder; } });
 const system_1 = require("./system");
+const region_1 = require("./region");
 (0, app_1.initializeApp)();
-const REGION = "africa-south1";
-exports.health = (0, https_1.onCall)({ region: REGION }, async () => {
+exports.health = (0, https_1.onCall)({ region: region_1.FUNCTIONS_REGION }, async () => {
     await (0, system_1.ensureSystemConfigDoc)();
     return {
         ok: true,
         service: "afterten-outlet-orders",
-        region: REGION,
+        region: region_1.FUNCTIONS_REGION,
         at: new Date().toISOString(),
     };
 });

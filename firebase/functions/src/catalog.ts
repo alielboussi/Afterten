@@ -3,8 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { requireBranchUser } from "./auth-context";
 import { assertOperationsNotPaused } from "./system";
 import { COLLECTIONS, type CatalogLineDoc } from "./schema";
-
-const REGION = "africa-south1";
+import { FUNCTIONS_REGION } from "./region";
 
 function mapCatalogLine(id: string, data: FirebaseFirestore.DocumentData): CatalogLineDoc & { id: string } {
   return {
@@ -23,7 +22,7 @@ function mapCatalogLine(id: string, data: FirebaseFirestore.DocumentData): Catal
   };
 }
 
-export const listOutletOrderCatalog = onCall({ region: REGION }, async (request) => {
+export const listOutletOrderCatalog = onCall({ region: FUNCTIONS_REGION }, async (request) => {
   await assertOperationsNotPaused();
   const profile = await requireBranchUser(String(request.auth?.uid ?? ""));
 
@@ -41,7 +40,7 @@ export const listOutletOrderCatalog = onCall({ region: REGION }, async (request)
   return { outletId: profile.outletId, lines };
 });
 
-export const getOrdersAppProfile = onCall({ region: REGION }, async (request) => {
+export const getOrdersAppProfile = onCall({ region: FUNCTIONS_REGION }, async (request) => {
   await assertOperationsNotPaused();
   const profile = await requireBranchUser(String(request.auth?.uid ?? ""));
   return {
