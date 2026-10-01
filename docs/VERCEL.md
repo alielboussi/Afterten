@@ -5,8 +5,9 @@
 | Setting | Value |
 |---------|--------|
 | **Root directory** | `afterten-orders` |
-| **Framework** | Other (static) |
-| **Build command** | *(leave empty)* |
+| **Framework preset** | **Other** (not Next.js — this repo is Expo + static `public/`) |
+| **Install command** | *(override in `vercel.json` — no-op)* |
+| **Build command** | *(override in `vercel.json` — no-op)* |
 | **Output directory** | `public` |
 | **Production domain** | `https://aftertentransfers.app/` |
 
