@@ -1,11 +1,6 @@
 import Link from "next/link";
 import { getCachedProductsList } from "@/lib/portal/products-cache";
-import { LiveQtyGateToggle } from "./LiveQtyGateToggle";
-import { ProductImageUpload } from "./ProductImageUpload";
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-ZM", { style: "currency", currency: "ZMW" }).format(value);
-}
+import { ProductsCatalogGrid } from "./ProductsCatalogGrid";
 
 export default async function ProductsPage() {
   let products: Awaited<ReturnType<typeof getCachedProductsList>> = [];
@@ -48,45 +43,7 @@ export default async function ProductsPage() {
           {products.length === 0 ? (
             <p className="at-muted">No products yet. Click Create new to add one.</p>
           ) : (
-            <ul className="at-productGrid">
-              {products.map((p) => (
-                <li key={p.id} className="at-productCard">
-                  <div className="at-product-cardMedia">
-                    <ProductImageUpload
-                      productDbId={p.id}
-                      imageUrl={p.imageUrl}
-                      productName={p.name}
-                      layout="card"
-                    />
-                  </div>
-                  <div className="at-productCardBody">
-                    <h3 className="at-productCardTitle">{p.name}</h3>
-                    <p className="at-productCardUuid" title={p.productId}>
-                      {p.productId}
-                    </p>
-                    <dl className="at-productCardMeta">
-                      <div className="at-productCardMetaRow">
-                        <dt>UOM</dt>
-                        <dd>{p.uom}</dd>
-                      </div>
-                      <div className="at-productCardMetaRow">
-                        <dt>Price</dt>
-                        <dd className="at-productCardPrice">{formatPrice(p.unitCost)}</dd>
-                      </div>
-                    </dl>
-                    <div className="at-productCardActions">
-                      <LiveQtyGateToggle productId={p.id} initialEnabled={p.liveQtyGateEnabled} />
-                      <span className={p.active ? "at-badgeActive" : "at-badgeOff"}>
-                        {p.active ? "Active" : "Hidden"}
-                      </span>
-                    </div>
-                    <Link href={`/dashboard/products/${p.id}/edit`} className="at-productCardEditBtn">
-                      Edit product
-                    </Link>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <ProductsCatalogGrid products={products} />
           )}
         </section>
       )}

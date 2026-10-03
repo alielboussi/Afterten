@@ -23,6 +23,7 @@ export type ProductInput = {
   qtyStep: number;
   minOrderQty: string;
   maxOrderQty: string;
+  hasVariants: boolean;
 };
 
 function parseOptionalQty(raw: string): number | null {
@@ -30,6 +31,25 @@ function parseOptionalQty(raw: string): number | null {
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** Next product catalog sort_order only (not variant sorts). Max + 1, or 0 when catalog empty. */
+export async function getNextProductSortOrder() {
+  const gate = await assertCallerIsPortalAdmin();
+  if (!gate.ok) return gate;
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("products")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return { ok: false as const, error: error.message };
+  const max = data?.sort_order;
+  const next = typeof max === "number" && Number.isFinite(max) ? max + 1 : 0;
+  return { ok: true as const, next };
 }
 
 export async function createProduct(input: ProductInput) {
@@ -70,6 +90,7 @@ export async function createProduct(input: ProductInput) {
       qty_step: qtyStep,
       min_order_qty: minOrderQty,
       max_order_qty: maxOrderQty,
+      has_variants: input.hasVariants,
       updated_at: new Date().toISOString(),
     })
     .select("id")
@@ -84,7 +105,7 @@ export async function createProduct(input: ProductInput) {
 
   revalidatePath("/dashboard/products");
   revalidateTag(PRODUCTS_LIST_TAG);
-  return { ok: true as const, id: data.id as string };
+  return { ok: true as const, id: data.id as string, productId };
 }
 
 export async function updateProduct(id: string, input: ProductInput) {
@@ -125,6 +146,7 @@ export async function updateProduct(id: string, input: ProductInput) {
       qty_step: qtyStep,
       min_order_qty: minOrderQty,
       max_order_qty: maxOrderQty,
+      has_variants: input.hasVariants,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -217,10 +239,22 @@ export async function uploadProductImage(productDbId: string, formData: FormData
 
   if (updateError) return { ok: false as const, error: updateError.message };
 
-  revalidatePath("/dashboard/products");
-  revalidatePath(`/dashboard/products/${productDbId}/edit`);
-  revalidateTag(PRODUCTS_LIST_TAG);
-  revalidateTag(`product-${productDbId}`);
-
+  // Client updates preview; skip path revalidation while user is on catalog/edit UI.
   return { ok: true as const, imageUrl };
+}
+
+export async function clearProductImage(productDbId: string) {
+  const gate = await assertCallerIsPortalAdmin();
+  if (!gate.ok) return gate;
+
+  if (!productDbId) return { ok: false as const, error: "Invalid product." };
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("products")
+    .update({ image_url: null, updated_at: new Date().toISOString() })
+    .eq("id", productDbId);
+
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const };
 }

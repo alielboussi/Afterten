@@ -2,22 +2,9 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
+import type { ProductRow } from "@/lib/portal/product-types";
 
-export type ProductRow = {
-  id: string;
-  productId: string;
-  name: string;
-  uom: string;
-  unitCost: number;
-  imageUrl: string | null;
-  active: boolean;
-  liveQtyGateEnabled: boolean;
-  sortOrder: number;
-  qtyStep: number;
-  minOrderQty: number | null;
-  maxOrderQty: number | null;
-  hasVariants: boolean;
-};
+export type { ProductRow } from "@/lib/portal/product-types";
 
 function mapProduct(row: Record<string, unknown>): ProductRow {
   return {

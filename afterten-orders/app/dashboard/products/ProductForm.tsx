@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createProduct, updateProduct } from "./actions";
+import { createProduct, getNextProductSortOrder, updateProduct, uploadProductImage } from "./actions";
+import { prepareCatalogImageFile } from "./prepare-catalog-image";
+import { PendingCatalogImagePicker } from "./PendingCatalogImagePicker";
 import { ProductImageUpload } from "./ProductImageUpload";
 import styles from "./product-styles";
 
@@ -19,11 +21,17 @@ type Initial = {
   qtyStep: number;
   minOrderQty: number | null;
   maxOrderQty: number | null;
+  hasVariants: boolean;
 };
 
 type Props =
-  | { mode: "create"; returnPath: string; initial?: undefined }
-  | { mode: "edit"; returnPath: string; initial: Initial };
+  | {
+      mode: "create";
+      returnPath: string;
+      onCreated?: (info: { id: string; productId: string; hasVariants: boolean }) => void;
+      initial?: undefined;
+    }
+  | { mode: "edit"; returnPath: string; initial: Initial; onCreated?: undefined };
 
 export function ProductForm(props: Props) {
   const { mode, returnPath } = props;
@@ -47,8 +55,51 @@ export function ProductForm(props: Props) {
   const [liveQtyGateEnabled, setLiveQtyGateEnabled] = useState(
     isEdit ? props.initial.liveQtyGateEnabled : false,
   );
+  const [hasVariants, setHasVariants] = useState(isEdit ? props.initial.hasVariants : false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
+  const pendingPreviewRef = useRef<string | null>(null);
+
+  function revokePreviewUrl(url: string | null) {
+    if (!url) return;
+    window.requestAnimationFrame(() => URL.revokeObjectURL(url));
+  }
+
+  function clearPendingImage() {
+    revokePreviewUrl(pendingPreviewRef.current);
+    pendingPreviewRef.current = null;
+    setPendingImageFile(null);
+    setPendingImagePreview(null);
+  }
+
+  function setPendingImage(file: File, previewUrl: string) {
+    revokePreviewUrl(pendingPreviewRef.current);
+    pendingPreviewRef.current = previewUrl;
+    setPendingImageFile(file);
+    setPendingImagePreview(previewUrl);
+  }
+
+  useEffect(() => {
+    return () => {
+      revokePreviewUrl(pendingPreviewRef.current);
+      pendingPreviewRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isEdit) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await getNextProductSortOrder();
+      if (cancelled || !result.ok) return;
+      setSortOrder(String(result.next));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -67,6 +118,7 @@ export function ProductForm(props: Props) {
       qtyStep: Number(qtyStep) || 1,
       minOrderQty,
       maxOrderQty,
+      hasVariants,
     };
 
     if (Number.isNaN(payload.unitCost)) {
@@ -79,10 +131,37 @@ export function ProductForm(props: Props) {
       ? await updateProduct(props.initial.id, payload)
       : await createProduct(payload);
 
-    setBusy(false);
     if (!result.ok) {
+      setBusy(false);
       setMessage(result.error);
       return;
+    }
+
+    if (!isEdit && pendingImageFile && "id" in result && result.id) {
+      let uploadFile = pendingImageFile;
+      try {
+        uploadFile = await prepareCatalogImageFile(pendingImageFile);
+      } catch {
+        uploadFile = pendingImageFile;
+      }
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      const upload = await uploadProductImage(result.id, formData);
+      if (!upload.ok) {
+        setMessage(upload.error);
+      } else {
+        clearPendingImage();
+      }
+    }
+
+    setBusy(false);
+    if (!isEdit && result.ok && "productId" in result && props.onCreated) {
+      props.onCreated({
+        id: result.id,
+        productId: result.productId,
+        hasVariants,
+      });
+      if (hasVariants) return;
     }
     router.push(returnPath);
   }
@@ -108,12 +187,16 @@ export function ProductForm(props: Props) {
 
       <div className={styles.twoCol}>
         <label className={styles.label}>
-          Sort order
+          Product sort order
           <input
             className={styles.input}
             type="number"
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
+            readOnly={!isEdit}
+            title={
+              isEdit ? undefined : "Catalog order only — not affected by variant sort numbers on other products"
+            }
           />
         </label>
         <label className={styles.label}>
@@ -185,31 +268,27 @@ export function ProductForm(props: Props) {
         </label>
       </div>
 
-      <label className={styles.label}>
+      <div className={styles.label}>
         Image
         {isEdit ? (
           <ProductImageUpload
             productDbId={props.initial.id}
             imageUrl={imageUrl || null}
             productName={name || "Product"}
+            onUploaded={(url) => setImageUrl(url)}
+            onRemoved={() => setImageUrl("")}
           />
         ) : (
-          <span className={styles.formHint} style={{ textAlign: "left", marginTop: 6 }}>
-            Save the product first, then click the image on the Products list to upload.
-          </span>
+          <PendingCatalogImagePicker
+            subjectName={name || "Product"}
+            file={pendingImageFile}
+            previewUrl={pendingImagePreview}
+            onPick={setPendingImage}
+            onClear={clearPendingImage}
+            uploadHint="Tall product photos work best. We trim empty margins when you create the product."
+          />
         )}
-      </label>
-
-      <label className={styles.label}>
-        Image URL (optional override)
-        <input
-          className={styles.input}
-          type="url"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="Leave blank when using Supabase storage upload"
-        />
-      </label>
+      </div>
 
       <label className={styles.checkRow}>
         <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
@@ -223,6 +302,15 @@ export function ProductForm(props: Props) {
           onChange={(e) => setLiveQtyGateEnabled(e.target.checked)}
         />
         Enable live qty gate (block order when API qty ≤ 0)
+      </label>
+
+      <label className={styles.checkRow}>
+        <input
+          type="checkbox"
+          checked={hasVariants}
+          onChange={(e) => setHasVariants(e.target.checked)}
+        />
+        This product has variants (outlets pick a variant in the app)
       </label>
 
       {message ? (

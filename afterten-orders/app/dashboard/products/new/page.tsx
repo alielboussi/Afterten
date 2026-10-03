@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ProductForm } from "../ProductForm";
+import { CreateProductFlow } from "../CreateProductFlow";
 
 export default function NewProductPage() {
   return (
@@ -9,9 +9,7 @@ export default function NewProductPage() {
       </Link>
       <h1 className="at-page-title">Create product</h1>
       <p className="at-page-lead">Add a catalog line for all outlets to order from.</p>
-      <section className="at-page-card">
-        <ProductForm mode="create" returnPath="/dashboard/products" />
-      </section>
+      <CreateProductFlow />
     </div>
   );
 }

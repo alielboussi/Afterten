@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PortalSidebar } from "./PortalSidebar";
+import { useDisableNumberInputWheel } from "./useDisableNumberInputWheel";
 
 const STORAGE_KEY = "afterten-portal-sidebar-open";
 
@@ -13,6 +14,8 @@ type Props = {
 export function PortalShell({ welcomeName, children }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarReady, setSidebarReady] = useState(false);
+
+  useDisableNumberInputWheel();
 
   useEffect(() => {
     try {

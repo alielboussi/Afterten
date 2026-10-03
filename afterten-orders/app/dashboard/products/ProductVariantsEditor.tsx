@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteProductVariant,
   listProductVariants,
   saveProductVariant,
-  setProductHasVariants,
+  uploadVariantImage,
   type ProductVariantInput,
 } from "./variant-actions";
+import { prepareCatalogImageFile } from "./prepare-catalog-image";
+import { PendingCatalogImagePicker } from "./PendingCatalogImagePicker";
+import { VariantImageUpload } from "./VariantImageUpload";
+import { VariantSortableList } from "./VariantSortableList";
 import styles from "./product-styles";
 
 type VariantRow = {
@@ -31,14 +35,19 @@ type Props = {
   hasVariants: boolean;
 };
 
-function emptyDraft(): ProductVariantInput {
+function nextVariantSortOrder(rows: VariantRow[]): number {
+  if (rows.length === 0) return 1;
+  return Math.max(...rows.map((r) => r.sort_order)) + 1;
+}
+
+function emptyDraft(sortOrder = 1): ProductVariantInput {
   return {
     variantId: "",
     name: "",
     uom: "pc",
     unitCost: 0,
     imageUrl: "",
-    sortOrder: 0,
+    sortOrder,
     qtyStep: 1,
     minOrderQty: "",
     maxOrderQty: "",
@@ -54,6 +63,37 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
+  const pendingPreviewRef = useRef<string | null>(null);
+
+  function revokePreviewUrl(url: string | null) {
+    if (!url) return;
+    window.requestAnimationFrame(() => {
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function clearPendingImage() {
+    revokePreviewUrl(pendingPreviewRef.current);
+    pendingPreviewRef.current = null;
+    setPendingImageFile(null);
+    setPendingImagePreview(null);
+  }
+
+  function setPendingImage(file: File, previewUrl: string) {
+    revokePreviewUrl(pendingPreviewRef.current);
+    pendingPreviewRef.current = previewUrl;
+    setPendingImageFile(file);
+    setPendingImagePreview(previewUrl);
+  }
+
+  useEffect(() => {
+    return () => {
+      revokePreviewUrl(pendingPreviewRef.current);
+      pendingPreviewRef.current = null;
+    };
+  }, []);
 
   const load = useCallback(async () => {
     const result = await listProductVariants(parentProductId);
@@ -88,20 +128,14 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
     };
   }, [hasVariants, parentProductId]);
 
-  async function onToggleHasVariants(checked: boolean) {
-    setBusy(true);
-    setMessage(null);
-    const result = await setProductHasVariants(productDbId, parentProductId, checked);
-    setBusy(false);
-    if (!result.ok) {
-      setMessage(result.error);
-      return;
-    }
-    setHasVariants(checked);
-    if (!checked) setRows([]);
-  }
+  useEffect(() => {
+    if (editingId) return;
+    const next = nextVariantSortOrder(rows);
+    setDraft((d) => (d.sortOrder === next ? d : { ...d, sortOrder: next }));
+  }, [rows, editingId]);
 
   function startEdit(row: VariantRow) {
+    clearPendingImage();
     setEditingId(row.id);
     setDraft({
       id: row.id,
@@ -129,7 +163,24 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
       setMessage(result.error);
       return;
     }
-    setDraft(emptyDraft());
+
+    if (pendingImageFile && result.id && draft.variantId) {
+      const formData = new FormData();
+      let uploadFile = pendingImageFile;
+      try {
+        uploadFile = await prepareCatalogImageFile(pendingImageFile);
+      } catch {
+        uploadFile = pendingImageFile;
+      }
+      formData.append("file", uploadFile);
+      const upload = await uploadVariantImage(result.id, parentProductId, draft.variantId, formData);
+      if (!upload.ok) {
+        setMessage(upload.error);
+      }
+    }
+
+    clearPendingImage();
+    setDraft(emptyDraft(nextVariantSortOrder(rows)));
     setEditingId(null);
     setHasVariants(true);
     await load();
@@ -147,7 +198,8 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
     await load();
     if (editingId === rowId) {
       setEditingId(null);
-      setDraft(emptyDraft());
+      clearPendingImage();
+      setDraft(emptyDraft(nextVariantSortOrder(rows)));
     }
   }
 
@@ -155,42 +207,30 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
     <section className={styles.variantsSection}>
       <h2 className={styles.variantsTitle}>Variants</h2>
       <p className={styles.formHint}>
-        Each variant uses its own inventory <strong>UUID</strong>. Outlets pick a variant in the app; the parent
-        product shows without a qty field when variants exist.
+        Each variant uses its own inventory <strong>UUID</strong>. Drag the <strong>⋮⋮</strong> handle to
+        set order in the outlet app (sort numbers update automatically).
       </p>
 
-      <label className={styles.checkRow}>
-        <input
-          type="checkbox"
-          checked={hasVariants}
-          disabled={busy}
-          onChange={(e) => void onToggleHasVariants(e.target.checked)}
-        />
-        This product has variants
-      </label>
-
-      {hasVariants ? (
+      {!hasVariants ? (
+        <p className={styles.formHint}>
+          Enable <strong>This product has variants</strong> on the product form above and save to add variant lines
+          here.
+        </p>
+      ) : (
         <>
-          <ul className={styles.variantList}>
-            {rows.map((row) => (
-              <li key={row.id} className={styles.variantListItem}>
-                <div>
-                  <strong>{row.name}</strong>
-                  <span className={styles.variantMeta}>
-                    {row.variant_id.slice(0, 8)}… · {row.uom} · K{Number(row.unit_cost).toFixed(2)}
-                  </span>
-                </div>
-                <div className={styles.variantListActions}>
-                  <button type="button" className={styles.cancelBtn} onClick={() => startEdit(row)}>
-                    Edit
-                  </button>
-                  <button type="button" className={styles.cancelBtn} onClick={() => void onDelete(row.id)}>
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <VariantSortableList
+            parentProductId={parentProductId}
+            rows={rows}
+            onRowsChange={setRows}
+            onReload={load}
+            onEdit={(row) => {
+              const full = rows.find((r) => r.id === row.id);
+              if (full) startEdit(full);
+            }}
+            onDelete={(rowId) => void onDelete(rowId)}
+            reorderDisabled={Boolean(editingId) || busy}
+            onReorderError={(err) => setMessage(err)}
+          />
 
           <form className={styles.variantForm} onSubmit={(e) => void onSaveVariant(e)}>
             <h3 className={styles.variantsSubTitle}>{editingId ? "Edit variant" : "Add variant"}</h3>
@@ -199,11 +239,15 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
               <input
                 className={styles.input}
                 value={draft.variantId}
-                onChange={(e) => setDraft((d) => ({ ...d, variantId: e.target.value }))}
+                onChange={(e) => setDraft((d) => ({ ...d, variantId: e.target.value.trim() }))}
                 required
-                readOnly={Boolean(editingId)}
                 placeholder="Separate UUID per variant"
               />
+              {editingId ? (
+                <span className={styles.formHint} style={{ textAlign: "left", marginTop: 4 }}>
+                  Must match inventory API. If you change it, re-upload the variant photo if the image breaks.
+                </span>
+              ) : null}
             </label>
             <label className={styles.label}>
               Name
@@ -237,23 +281,70 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
                 />
               </label>
             </div>
-            <label className={styles.label}>
-              Image URL (optional)
-              <input
-                className={styles.input}
-                type="url"
-                value={draft.imageUrl}
-                onChange={(e) => setDraft((d) => ({ ...d, imageUrl: e.target.value }))}
-              />
-            </label>
+            <div className={styles.label}>
+              Image
+              {editingId ? (
+                <VariantImageUpload
+                  variantRowId={editingId}
+                  parentProductId={parentProductId}
+                  variantId={draft.variantId}
+                  variantName={draft.name || "Variant"}
+                  imageUrl={draft.imageUrl || null}
+                  onUploaded={(url) => setDraft((d) => ({ ...d, imageUrl: url }))}
+                  onRemoved={() => setDraft((d) => ({ ...d, imageUrl: "" }))}
+                />
+              ) : (
+                <PendingCatalogImagePicker
+                  subjectName={draft.name}
+                  file={pendingImageFile}
+                  previewUrl={pendingImagePreview}
+                  onPick={setPendingImage}
+                  onClear={clearPendingImage}
+                  uploadHint="Tall product photos work best. We trim empty margins on upload."
+                />
+              )}
+            </div>
             <div className={styles.twoCol}>
               <label className={styles.label}>
-                Sort
+                Min order qty (optional)
                 <input
                   className={styles.input}
                   type="number"
+                  min={0}
+                  step="any"
+                  value={draft.minOrderQty}
+                  onChange={(e) => setDraft((d) => ({ ...d, minOrderQty: e.target.value }))}
+                />
+              </label>
+              <label className={styles.label}>
+                Max order qty (optional)
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={draft.maxOrderQty}
+                  onChange={(e) => setDraft((d) => ({ ...d, maxOrderQty: e.target.value }))}
+                />
+              </label>
+            </div>
+            <div className={styles.twoCol}>
+              <label className={styles.label}>
+                Variant sort
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={1}
                   value={draft.sortOrder}
-                  onChange={(e) => setDraft((d) => ({ ...d, sortOrder: Number(e.target.value) || 0 }))}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, sortOrder: Math.max(1, Number(e.target.value) || 1) }))
+                  }
+                  readOnly={!editingId}
+                  title={
+                    editingId
+                      ? undefined
+                      : "Per-product only — not tied to product catalog sort. Next number on this product."
+                  }
                 />
               </label>
               <label className={styles.label}>
@@ -285,7 +376,8 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
                 className={styles.cancelBtn}
                 onClick={() => {
                   setEditingId(null);
-                  setDraft(emptyDraft());
+                  clearPendingImage();
+                  setDraft(emptyDraft(nextVariantSortOrder(rows)));
                 }}
               >
                 Cancel edit
@@ -293,7 +385,7 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
             ) : null}
           </form>
         </>
-      ) : null}
+      )}
 
       {message ? (
         <p className={styles.msgErr} role="alert">

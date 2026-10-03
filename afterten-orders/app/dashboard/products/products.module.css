@@ -629,6 +629,39 @@
   margin: 12px 0 8px;
 }
 
+.variantFormImageRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.variantFormImageActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 160px;
+}
+
+.secondaryBtn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--afterten-border);
+  background: #fff;
+  color: var(--afterten-text);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondaryBtn:hover {
+  border-color: var(--afterten-red);
+  color: var(--afterten-red);
+}
+
 .variantList {
   list-style: none;
   padding: 0;
@@ -643,11 +676,146 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--afterten-border);
   border-radius: 10px;
   background: #fff;
+}
+
+.variantListItemDragging {
+  opacity: 0.55;
+  border-color: var(--afterten-red-border);
+  box-shadow: 0 2px 8px rgb(185 28 28 / 12%);
+}
+
+.variantDragHandle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: #fafaf9;
+  color: var(--afterten-muted);
+  font-size: 0.85rem;
+  letter-spacing: -2px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.variantDragHandle:active {
+  cursor: grabbing;
+}
+
+.variantDragHandle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.variantDragHandle:hover:not(:disabled) {
+  background: var(--afterten-red-soft);
+  color: var(--afterten-red-dark);
+}
+
+.variantListMain {
+  flex: 1;
+  min-width: 120px;
+}
+
+.variantThumbWrap {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.variantThumbBtn {
+  width: 48px;
+  height: 64px;
+  padding: 0;
+  border: 1px dashed var(--afterten-border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.variantThumbBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.variantThumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.variantThumbPlaceholder {
+  font-size: 0.65rem;
+  color: var(--afterten-muted);
+  text-align: center;
+  padding: 4px;
+  line-height: 1.2;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.variantThumbBtnCompact {
+  width: 40px;
+  height: 54px;
+}
+
+.variantThumbPlaceholderCompact {
+  font-size: 0.58rem;
+  color: var(--afterten-muted);
+  text-align: center;
+  padding: 2px;
+  line-height: 1.15;
+}
+
+.variantThumbWrapCompact {
+  position: relative;
+}
+
+.variantThumbWrapCompact .thumbErr {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  width: max-content;
+  max-width: 140px;
+  font-size: 0.58rem;
+  z-index: 2;
+}
+
+.variantImageRemoveBtn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--afterten-red-dark);
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.variantImageRemoveBtn:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 
 .variantMeta {

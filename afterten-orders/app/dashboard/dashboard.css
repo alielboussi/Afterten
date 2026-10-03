@@ -635,6 +635,18 @@
   margin: 0;
 }
 
+/* All dashboard numeric fields: hide spin buttons (wheel change blocked in PortalShell). */
+.at-portal-shell input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.at-portal-shell input[type="number"]::-webkit-outer-spin-button,
+.at-portal-shell input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .at-form-input:focus,
 .at-form-select:focus {
   border-color: var(--afterten-red);

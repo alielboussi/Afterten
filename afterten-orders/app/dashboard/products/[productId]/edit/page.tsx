@@ -49,6 +49,7 @@ export default async function EditProductPage({ params }: Props) {
               qtyStep: product.qtyStep,
               minOrderQty: product.minOrderQty,
               maxOrderQty: product.maxOrderQty,
+              hasVariants: product.hasVariants,
             }}
           />
         </section>
