@@ -127,17 +127,26 @@ export function ProductForm(props: Props) {
       return;
     }
 
-    const result = isEdit
-      ? await updateProduct(props.initial.id, payload)
-      : await createProduct(payload);
-
-    if (!result.ok) {
+    if (isEdit) {
+      const result = await updateProduct(props.initial.id, payload);
+      if (!result.ok) {
+        setBusy(false);
+        setMessage(result.error);
+        return;
+      }
       setBusy(false);
-      setMessage(result.error);
+      router.push(returnPath);
       return;
     }
 
-    if (!isEdit && pendingImageFile && "id" in result && result.id) {
+    const created = await createProduct(payload);
+    if (!created.ok) {
+      setBusy(false);
+      setMessage(created.error);
+      return;
+    }
+
+    if (pendingImageFile) {
       let uploadFile = pendingImageFile;
       try {
         uploadFile = await prepareCatalogImageFile(pendingImageFile);
@@ -146,7 +155,7 @@ export function ProductForm(props: Props) {
       }
       const formData = new FormData();
       formData.append("file", uploadFile);
-      const upload = await uploadProductImage(result.id, formData);
+      const upload = await uploadProductImage(created.id, formData);
       if (!upload.ok) {
         setMessage(upload.error);
       } else {
@@ -155,10 +164,10 @@ export function ProductForm(props: Props) {
     }
 
     setBusy(false);
-    if (!isEdit && result.ok && "productId" in result && props.onCreated) {
+    if (props.onCreated) {
       props.onCreated({
-        id: result.id,
-        productId: result.productId,
+        id: created.id,
+        productId: created.productId,
         hasVariants,
       });
       if (hasVariants) return;

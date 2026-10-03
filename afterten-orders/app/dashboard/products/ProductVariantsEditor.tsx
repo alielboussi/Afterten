@@ -221,7 +221,7 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
           <VariantSortableList
             parentProductId={parentProductId}
             rows={rows}
-            onRowsChange={setRows}
+            onRowsChange={(next) => setRows(next as VariantRow[])}
             onReload={load}
             onEdit={(row) => {
               const full = rows.find((r) => r.id === row.id);
