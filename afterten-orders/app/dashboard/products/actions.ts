@@ -23,6 +23,9 @@ export type ProductInput = {
   qtyStep: number;
   minOrderQty: string;
   maxOrderQty: string;
+  maxOrderQtyDays: string;
+  unitsPerOrderUnit: number;
+  unitsPerOrderUom: string;
   hasVariants: boolean;
 };
 
@@ -31,6 +34,13 @@ function parseOptionalQty(raw: string): number | null {
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function parseOptionalDays(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number.parseInt(t, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /** Next product catalog sort_order only (not variant sorts). Max + 1, or 0 when catalog empty. */
@@ -67,12 +77,18 @@ export async function createProduct(input: ProductInput) {
   const qtyStep = input.qtyStep > 0 ? input.qtyStep : 1;
   const minOrderQty = parseOptionalQty(input.minOrderQty);
   const maxOrderQty = parseOptionalQty(input.maxOrderQty);
+  const maxOrderQtyDays = parseOptionalDays(input.maxOrderQtyDays);
 
   if (!name) return { ok: false as const, error: "Name is required." };
   if (input.unitCost < 0) return { ok: false as const, error: "Price cannot be negative." };
   if (minOrderQty !== null && maxOrderQty !== null && minOrderQty > maxOrderQty) {
     return { ok: false as const, error: "Min qty cannot exceed max qty." };
   }
+  if (maxOrderQtyDays !== null && maxOrderQty === null) {
+    return { ok: false as const, error: "Set max order qty when using a rolling day limit." };
+  }
+  const unitsPerOrderUnit = input.unitsPerOrderUnit > 0 ? input.unitsPerOrderUnit : 1;
+  const unitsPerOrderUom = input.unitsPerOrderUom.trim() || "pcs";
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -90,6 +106,9 @@ export async function createProduct(input: ProductInput) {
       qty_step: qtyStep,
       min_order_qty: minOrderQty,
       max_order_qty: maxOrderQty,
+      max_order_qty_days: maxOrderQtyDays,
+      units_per_order_unit: unitsPerOrderUnit,
+      units_per_order_uom: unitsPerOrderUom,
       has_variants: input.hasVariants,
       updated_at: new Date().toISOString(),
     })
@@ -125,11 +144,17 @@ export async function updateProduct(id: string, input: ProductInput) {
   const qtyStep = input.qtyStep > 0 ? input.qtyStep : 1;
   const minOrderQty = parseOptionalQty(input.minOrderQty);
   const maxOrderQty = parseOptionalQty(input.maxOrderQty);
+  const maxOrderQtyDays = parseOptionalDays(input.maxOrderQtyDays);
 
   if (!name) return { ok: false as const, error: "Name is required." };
   if (minOrderQty !== null && maxOrderQty !== null && minOrderQty > maxOrderQty) {
     return { ok: false as const, error: "Min qty cannot exceed max qty." };
   }
+  if (maxOrderQtyDays !== null && maxOrderQty === null) {
+    return { ok: false as const, error: "Set max order qty when using a rolling day limit." };
+  }
+  const unitsPerOrderUnit = input.unitsPerOrderUnit > 0 ? input.unitsPerOrderUnit : 1;
+  const unitsPerOrderUom = input.unitsPerOrderUom.trim() || "pcs";
 
   const admin = createAdminClient();
   const { error } = await admin
@@ -146,6 +171,9 @@ export async function updateProduct(id: string, input: ProductInput) {
       qty_step: qtyStep,
       min_order_qty: minOrderQty,
       max_order_qty: maxOrderQty,
+      max_order_qty_days: maxOrderQtyDays,
+      units_per_order_unit: unitsPerOrderUnit,
+      units_per_order_uom: unitsPerOrderUom,
       has_variants: input.hasVariants,
       updated_at: new Date().toISOString(),
     })
@@ -157,6 +185,19 @@ export async function updateProduct(id: string, input: ProductInput) {
   revalidatePath(`/dashboard/products/${id}/edit`);
   revalidateTag(PRODUCTS_LIST_TAG);
   revalidateTag(`product-${id}`);
+
+  await admin
+    .from("product_variants")
+    .update({
+      min_order_qty: minOrderQty,
+      max_order_qty: maxOrderQty,
+      max_order_qty_days: maxOrderQtyDays,
+      units_per_order_unit: unitsPerOrderUnit,
+      units_per_order_uom: unitsPerOrderUom,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("product_id", productId);
+
   return { ok: true as const };
 }
 

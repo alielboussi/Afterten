@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -13,7 +12,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -28,12 +26,33 @@ import {
   type OutletProfile,
   type OrderQtyLine,
 } from "./lib/supabase";
+import { formatOrderUnitBreakdown, formatPerOrderUnitHint } from "./lib/order-units";
+import {
+  formatOrderWindowUsage,
+  isOrderWindowExhausted,
+} from "./lib/order-qty-limits";
+import { applyParentCatalogToVariant } from "./lib/catalog-lines";
+import { prefetchCatalogImages } from "./lib/catalog-image-cache";
+import { useAppScreenLayout } from "./lib/screen-layout";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ZoomableImage } from "./components/ZoomableImage";
+import { CatalogProductImage } from "./components/CatalogProductImage";
+import { OrderSummaryScreen } from "./components/OrderSummaryScreen";
+import { ToastBanner } from "./components/ToastBanner";
+import {
+  cartHasItems,
+  fetchOrderSummaryPreview,
+  type OrderSummaryPreview,
+} from "./lib/order-summary";
+import { submitOutletOrder } from "./lib/submit-outlet-order";
+import { waitForOrderPdfAndOpen } from "./lib/order-pdf-download";
+import type { SignaturePadHandle } from "./components/SignaturePad";
 
 type Screen = "loading" | "login" | "home";
 
-export default function App() {
+function AppShell() {
   const supabase = useMemo(() => (supabaseConfigured() ? createSupabaseClient() : null), []);
+  const screenLayout = useAppScreenLayout();
   const [screen, setScreen] = useState<Screen>("loading");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,14 +66,86 @@ export default function App() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [variantsModalProduct, setVariantsModalProduct] = useState<OutletProduct | null>(null);
+  const [orderSummaryActive, setOrderSummaryActive] = useState(false);
+  const [orderSummaryPreview, setOrderSummaryPreview] = useState<OrderSummaryPreview | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [cartQty, setCartQty] = useState<Record<string, number>>({});
   const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
+  const [orderSaveError, setOrderSaveError] = useState<string | null>(null);
+  const [orderSaving, setOrderSaving] = useState(false);
+  const [saveToast, setSaveToast] = useState<string | null>(null);
+
+  async function onViewSummary() {
+    if (!supabase || !cartHasItems(cartQty)) return;
+    setSummaryLoading(true);
+    setProductsError(null);
+    const { preview, error } = await fetchOrderSummaryPreview(supabase, products, cartQty);
+    setSummaryLoading(false);
+    if (error || !preview) {
+      setProductsError(error ?? "Could not build order summary.");
+      return;
+    }
+    setOrderSaveError(null);
+    setOrderSummaryPreview(preview);
+    setOrderSummaryActive(true);
+  }
+
+  async function onSaveOrderFromSummary(employeeName: string, signaturePad: SignaturePadHandle) {
+    if (!supabase || !profile || orderSaving) return;
+    if (!signaturePad.isValid()) {
+      setOrderSaveError(signaturePad.validationMessage() ?? "Please sign in the box.");
+      return;
+    }
+    setOrderSaving(true);
+    setOrderSaveError(null);
+    const pngUri = await signaturePad.capturePngUri();
+    if (!pngUri) {
+      setOrderSaving(false);
+      setOrderSaveError("Could not read signature. Try again.");
+      return;
+    }
+    const result = await submitOutletOrder(supabase, {
+      outletId: profile.outlet_id,
+      employeeName,
+      signaturePngUri: pngUri,
+      products,
+      cartQty,
+    });
+    setOrderSaving(false);
+    if (!result.ok) {
+      setOrderSaveError(result.error);
+      return;
+    }
+    setCartQty({});
+    setQtyDraft({});
+    setOrderSummaryActive(false);
+    setOrderSummaryPreview(null);
+    setOrderFlowActive(false);
+    setOrderSaveError(null);
+    setSaveToast(`Order ${result.orderNumber} saved`);
+    void loadProducts();
+    void waitForOrderPdfAndOpen(supabase, result.orderId).then((pdf) => {
+      if (!pdf.ok) {
+        setSaveToast(`Order ${result.orderNumber} saved (PDF: ${pdf.error})`);
+      }
+    });
+  }
 
   const loadProducts = useCallback(async () => {
     if (!supabase) return;
     const { products: rows, error: err } = await fetchOutletProducts(supabase);
     setProducts(rows);
     setProductsError(err);
+    if (!err && rows.length > 0) {
+      const urls: string[] = [];
+      for (const p of rows) {
+        if (p.image_url) urls.push(p.image_url);
+        for (const v of p.variants) {
+          if (v.image_url) urls.push(v.image_url);
+        }
+      }
+      prefetchCatalogImages(urls);
+    }
   }, [supabase]);
 
   const bootstrap = useCallback(async () => {
@@ -127,6 +218,8 @@ export default function App() {
     setProfile(null);
     setProducts([]);
     setOrderFlowActive(false);
+    setOrderSummaryActive(false);
+    setOrderSummaryPreview(null);
     setLightboxUrl(null);
     setVariantsModalProduct(null);
     setCartQty({});
@@ -137,7 +230,12 @@ export default function App() {
 
   if (screen === "loading") {
     return (
-      <View style={styles.center}>
+      <View
+        style={[
+          styles.center,
+          { paddingTop: screenLayout.paddingTop, paddingBottom: screenLayout.paddingBottom },
+        ]}
+      >
         <ActivityIndicator size="large" color="#c41e3a" />
         <StatusBar style="auto" />
       </View>
@@ -146,12 +244,7 @@ export default function App() {
 
   if (screen === "home" && profile) {
     const displayName = getOutletDisplayName(profile);
-    const gridGap = 10;
-    const gridPadding = 16;
-    const gridItemWidth =
-      (Dimensions.get("window").width - gridPadding * 2 - gridGap) / 2;
-
-    const statusPad = (Constants.statusBarHeight ?? 0) + 8;
+    const { gridItemWidth, gridGap, catalogImageHeight, compact } = screenLayout;
 
     function commitQtyLine(lineId: string, line: OrderQtyLine, raw: string) {
       setQtyDraft((prev) => {
@@ -179,15 +272,31 @@ export default function App() {
       if (showUnavailable) {
         return <Text style={styles.qtyMeta}>Not available</Text>;
       }
+      if (!line.orderable && isOrderWindowExhausted(line)) {
+        const usage = formatOrderWindowUsage(line);
+        return (
+          <Text style={styles.qtyMeta}>
+            {usage ? `Limit reached (${usage})` : "Order limit reached"}
+          </Text>
+        );
+      }
       const step = line.qty_step > 0 ? line.qty_step : 1;
       const qty = cartQty[lineId] ?? 0;
       const qtyText =
         qtyDraft[lineId] ?? (qty === 0 ? "" : String(Number.isInteger(qty) ? qty : qty));
       const canDec = line.orderable && qty > 0;
       const canInc = line.orderable;
+      const unitBreakdown = formatOrderUnitBreakdown(
+        qty,
+        line.uom,
+        line.units_per_order_unit > 0 ? line.units_per_order_unit : 1,
+        line.units_per_order_uom,
+      );
+      const windowUsage = formatOrderWindowUsage(line);
 
       return (
-        <View style={styles.cardStepper}>
+        <View style={styles.qtyBlock}>
+          <View style={styles.cardStepper}>
           <Pressable
             style={[styles.cardStepBtn, !canDec && styles.cardStepBtnDisabled]}
             disabled={!canDec}
@@ -223,17 +332,29 @@ export default function App() {
           >
             <Text style={styles.cardStepBtnText}>+</Text>
           </Pressable>
+          </View>
+          {unitBreakdown ? <Text style={styles.orderUnitsMeta}>{unitBreakdown}</Text> : null}
+          {windowUsage ? <Text style={styles.orderWindowMeta}>{windowUsage}</Text> : null}
         </View>
       );
     }
 
-    function renderCatalogCard(item: OutletProduct | OutletProductVariant, isVariant: boolean) {
+    function renderCatalogCard(
+      item: OutletProduct | OutletProductVariant,
+      isVariant: boolean,
+      imageHeight = catalogImageHeight,
+    ) {
       const lineId = isVariant
         ? (item as OutletProductVariant).variant_id
         : (item as OutletProduct).product_id;
       const name = item.name;
       const imageUrl = item.image_url;
       const showUnavailable = item.live_qty_gate_enabled && !item.orderable;
+      const unitHint = formatPerOrderUnitHint(
+        item.units_per_order_unit,
+        item.uom,
+        item.units_per_order_uom,
+      );
 
       return (
         <View
@@ -243,20 +364,12 @@ export default function App() {
             !item.orderable && styles.productRowOff,
           ]}
         >
-          <Pressable
-            onPress={() => imageUrl && setLightboxUrl(imageUrl)}
-            disabled={!imageUrl}
-            accessibilityRole="button"
-            accessibilityLabel={`View larger image for ${name}`}
-          >
-            {imageUrl ? (
-              <Image source={{ uri: imageUrl }} style={styles.gridImage} />
-            ) : (
-              <View style={styles.gridImagePlaceholder}>
-                <Text style={styles.placeholderText}>—</Text>
-              </View>
-            )}
-          </Pressable>
+          <CatalogProductImage
+            imageUrl={imageUrl}
+            label={name}
+            frameHeight={imageHeight}
+            onPress={imageUrl ? () => setLightboxUrl(imageUrl) : undefined}
+          />
           <View style={styles.gridItemBody}>
             <View style={styles.productNameSlot}>
               <Text style={styles.productName} numberOfLines={2}>
@@ -266,6 +379,7 @@ export default function App() {
             <Text style={styles.productMeta}>
               {item.uom} · K{item.unit_cost.toFixed(2)}
             </Text>
+            {unitHint ? <Text style={styles.orderUnitsMeta}>{unitHint}</Text> : null}
             <View style={styles.cardControlsSlot}>
               {renderQtyControls(lineId, item, showUnavailable)}
             </View>
@@ -275,7 +389,16 @@ export default function App() {
     }
 
     return (
-      <View style={[styles.home, { paddingTop: statusPad }]}>
+      <View
+        style={[
+          styles.home,
+          {
+            paddingTop: screenLayout.paddingTop,
+            paddingBottom: screenLayout.paddingBottom,
+            paddingHorizontal: screenLayout.paddingHorizontal,
+          },
+        ]}
+      >
         {!orderFlowActive ? (
           <>
             <View style={styles.dashboardTopBar}>
@@ -290,15 +413,21 @@ export default function App() {
               </Pressable>
             </View>
             <View style={styles.dashboard}>
-              <View style={styles.dashboardUpper}>
+              <View style={[styles.dashboardUpper, compact && styles.dashboardUpperCompact]}>
                 <View style={styles.welcomeBlock}>
-                  <Text style={styles.welcomeLabel}>Welcome,</Text>
-                  <Text style={styles.welcomeName} numberOfLines={3} ellipsizeMode="tail">
+                  <Text style={[styles.welcomeLabel, compact && styles.welcomeLabelCompactSize]}>
+                    Welcome,
+                  </Text>
+                  <Text
+                    style={[styles.welcomeName, compact && styles.welcomeNameCompact]}
+                    numberOfLines={3}
+                    ellipsizeMode="tail"
+                  >
                     {displayName}
                   </Text>
                 </View>
                 <Pressable
-                  style={[styles.placeOrderBtn, busy && styles.primaryBtnDisabled]}
+                  style={[styles.placeOrderBtn, compact && styles.placeOrderBtnCompact, busy && styles.primaryBtnDisabled]}
                   disabled={busy}
                   onPress={() => void onStartOrder()}
                 >
@@ -331,6 +460,8 @@ export default function App() {
             <Pressable
               style={styles.backLink}
               onPress={() => {
+                setOrderSummaryActive(false);
+                setOrderSummaryPreview(null);
                 setOrderFlowActive(false);
                 setLightboxUrl(null);
                 setQtyDraft({});
@@ -339,7 +470,22 @@ export default function App() {
               <Text style={styles.backLinkText}>← Dashboard</Text>
             </Pressable>
             {productsError ? <Text style={styles.error}>{productsError}</Text> : null}
-            {productsLoading ? (
+            {orderSummaryActive && orderSummaryPreview ? (
+              <OrderSummaryScreen
+                outletName={displayName}
+                outletCode={profile.outlet_id}
+                preview={orderSummaryPreview}
+                onBack={() => {
+                  setOrderSummaryActive(false);
+                  setOrderSummaryPreview(null);
+                  setOrderSaveError(null);
+                }}
+                onSaveOrder={(name, pad) => void onSaveOrderFromSummary(name, pad)}
+                saving={orderSaving}
+                saveError={orderSaveError}
+                contentPaddingBottom={screenLayout.listBottomPad}
+              />
+            ) : productsLoading ? (
               <View style={styles.productsLoading}>
                 <ActivityIndicator size="large" color="#c41e3a" />
               </View>
@@ -349,18 +495,49 @@ export default function App() {
                 data={products}
                 keyExtractor={(item) => item.product_id}
                 numColumns={2}
-                columnWrapperStyle={styles.gridRow}
-                contentContainerStyle={styles.listContent}
+                columnWrapperStyle={[styles.gridRow, { gap: gridGap }]}
+                contentContainerStyle={{ paddingBottom: screenLayout.listBottomPad }}
                 showsVerticalScrollIndicator={false}
+                removeClippedSubviews={Platform.OS === "android"}
+                initialNumToRender={8}
+                maxToRenderPerBatch={6}
+                windowSize={7}
+                updateCellsBatchingPeriod={48}
                 ListEmptyComponent={
                   <Text style={styles.sub}>
                     No products yet. Add them in the portal Products page.
                   </Text>
                 }
+                ListFooterComponent={
+                  <View style={styles.summaryFooter}>
+                    <Pressable
+                      style={[
+                        styles.viewSummaryBtn,
+                        (!cartHasItems(cartQty) || summaryLoading || busy) &&
+                          styles.viewSummaryBtnDisabled,
+                      ]}
+                      disabled={!cartHasItems(cartQty) || summaryLoading || busy}
+                      onPress={() => void onViewSummary()}
+                      accessibilityRole="button"
+                      accessibilityLabel="View order summary"
+                    >
+                      <Text style={styles.viewSummaryBtnText}>
+                        {summaryLoading ? "Loading…" : "View Summary"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                }
                 renderItem={({ item }) => {
                   const hasVariantPicker = item.has_variants && item.variants.length > 0;
                   const showUnavailable =
                     !hasVariantPicker && item.live_qty_gate_enabled && !item.orderable;
+                  const unitHint = !hasVariantPicker
+                    ? formatPerOrderUnitHint(
+                        item.units_per_order_unit,
+                        item.uom,
+                        item.units_per_order_uom,
+                      )
+                    : null;
 
                   return (
                     <View
@@ -370,20 +547,14 @@ export default function App() {
                         !item.orderable && !hasVariantPicker && styles.productRowOff,
                       ]}
                     >
-                      <Pressable
-                        onPress={() => item.image_url && setLightboxUrl(item.image_url)}
-                        disabled={!item.image_url}
-                        accessibilityRole="button"
-                        accessibilityLabel={`View larger image for ${item.name}`}
-                      >
-                        {item.image_url ? (
-                          <Image source={{ uri: item.image_url }} style={styles.gridImage} />
-                        ) : (
-                          <View style={styles.gridImagePlaceholder}>
-                            <Text style={styles.placeholderText}>—</Text>
-                          </View>
-                        )}
-                      </Pressable>
+                      <CatalogProductImage
+                        imageUrl={item.image_url}
+                        label={item.name}
+                        frameHeight={catalogImageHeight}
+                        onPress={
+                          item.image_url ? () => setLightboxUrl(item.image_url!) : undefined
+                        }
+                      />
                       <View style={styles.gridItemBody}>
                         <View style={styles.productNameSlot}>
                           <Text style={styles.productName} numberOfLines={2}>
@@ -393,6 +564,7 @@ export default function App() {
                         <Text style={styles.productMeta}>
                           {item.uom} · K{item.unit_cost.toFixed(2)}
                         </Text>
+                        {unitHint ? <Text style={styles.orderUnitsMeta}>{unitHint}</Text> : null}
                         <View style={styles.cardControlsSlot}>
                           {hasVariantPicker ? (
                             <Pressable
@@ -420,7 +592,16 @@ export default function App() {
           animationType="slide"
           onRequestClose={() => setVariantsModalProduct(null)}
         >
-          <View style={styles.variantsModal}>
+          <View
+            style={[
+              styles.variantsModal,
+              {
+                paddingTop: screenLayout.paddingTop,
+                paddingBottom: screenLayout.paddingBottom,
+                paddingHorizontal: screenLayout.paddingHorizontal,
+              },
+            ]}
+          >
             <View style={styles.variantsModalHeader}>
               <Text style={styles.variantsModalTitle} numberOfLines={2}>
                 {variantsModalProduct?.name ?? "Variants"}
@@ -437,10 +618,20 @@ export default function App() {
               data={variantsModalProduct?.variants ?? []}
               keyExtractor={(v) => v.variant_id}
               numColumns={2}
-              columnWrapperStyle={styles.gridRow}
-              contentContainerStyle={styles.listContent}
+              columnWrapperStyle={[styles.gridRow, { gap: gridGap }]}
+              contentContainerStyle={{ paddingBottom: screenLayout.listBottomPad }}
               showsVerticalScrollIndicator={false}
-              renderItem={({ item: variant }) => renderCatalogCard(variant, true)}
+              removeClippedSubviews={Platform.OS === "android"}
+              initialNumToRender={8}
+              maxToRenderPerBatch={6}
+              windowSize={7}
+              renderItem={({ item: variant }) => {
+                const parent = variantsModalProduct!;
+                return renderCatalogCard(
+                  applyParentCatalogToVariant(variant, parent),
+                  true,
+                );
+              }}
             />
           </View>
         </Modal>
@@ -455,7 +646,7 @@ export default function App() {
             <Pressable style={StyleSheet.absoluteFill} onPress={() => setLightboxUrl(null)} />
             {lightboxUrl ? <ZoomableImage uri={lightboxUrl} /> : null}
             <Pressable
-              style={styles.lightboxClose}
+              style={[styles.lightboxClose, { top: screenLayout.paddingTop + 8 }]}
               onPress={() => setLightboxUrl(null)}
               accessibilityRole="button"
               accessibilityLabel="Close image"
@@ -464,6 +655,7 @@ export default function App() {
             </Pressable>
           </View>
         </Modal>
+        <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
         <StatusBar style="auto" />
       </View>
     );
@@ -471,7 +663,14 @@ export default function App() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[
+        styles.container,
+        {
+          paddingTop: screenLayout.paddingTop,
+          paddingBottom: screenLayout.paddingBottom,
+          paddingHorizontal: screenLayout.compact ? 18 : 22,
+        },
+      ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.loginHeader}>
@@ -537,7 +736,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fffbf7",
-    padding: 24,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -548,11 +746,11 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   loginLogo: {
-    width: 160,
-    height: 160,
-    marginBottom: 12,
+    width: 148,
+    height: 148,
+    marginBottom: 10,
   },
-  home: { flex: 1, backgroundColor: "#fffbf7", paddingHorizontal: 16 },
+  home: { flex: 1, backgroundColor: "#fffbf7" },
   topBar: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -599,13 +797,15 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   welcomeName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
     color: "#1e3a8a",
     textAlign: "center",
-    lineHeight: 30,
+    lineHeight: 28,
     width: "100%",
   },
+  welcomeLabelCompactSize: { fontSize: 16, marginBottom: 4 },
+  welcomeNameCompact: { fontSize: 20, lineHeight: 26 },
   welcomeLabelCompact: {
     fontSize: 14,
     fontWeight: "600",
@@ -645,8 +845,11 @@ const styles = StyleSheet.create({
   },
   dashboardUpper: {
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingTop: 56,
+    paddingHorizontal: 4,
+    paddingTop: 48,
+  },
+  dashboardUpperCompact: {
+    paddingTop: 28,
   },
   dashboardActionsSlot: {
     flex: 1,
@@ -657,12 +860,16 @@ const styles = StyleSheet.create({
   placeOrderBtn: {
     backgroundColor: "#c41e3a",
     borderRadius: 999,
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    minWidth: 240,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    minWidth: 220,
     alignItems: "center",
   },
-  placeOrderBtnText: { color: "#fff", fontWeight: "700", fontSize: 18 },
+  placeOrderBtnCompact: {
+    paddingVertical: 14,
+    minWidth: 200,
+  },
+  placeOrderBtnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
   backLink: { marginBottom: 6, paddingVertical: 2, alignSelf: "flex-start" },
   backLinkText: { color: "#c41e3a", fontWeight: "600", fontSize: 14 },
   productsLoading: { flex: 1, alignItems: "center", justifyContent: "center" },
@@ -674,36 +881,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   sub: { fontSize: 15, color: "#57534e", marginBottom: 20, lineHeight: 22, textAlign: "center" },
-  listContent: { paddingBottom: 32, paddingHorizontal: 0 },
-  gridRow: { justifyContent: "space-between", marginBottom: 10 },
+  gridRow: { justifyContent: "space-between", marginBottom: 8 },
   gridItem: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 10,
+    borderRadius: 10,
+    padding: 8,
     borderWidth: 1,
     borderColor: "#e7e5e4",
     flexDirection: "column",
   },
   productRowOff: { opacity: 0.55 },
-  gridImage: {
-    width: "100%",
-    aspectRatio: 1,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  gridImagePlaceholder: {
-    width: "100%",
-    aspectRatio: 1,
-    borderRadius: 8,
-    marginBottom: 8,
-    backgroundColor: "#f5f5f4",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  placeholderText: { color: "#a8a29e" },
   gridItemBody: {
     flex: 1,
-    minHeight: 108,
+    minHeight: 100,
     justifyContent: "flex-start",
   },
   productNameSlot: {
@@ -719,8 +909,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   qtyMeta: { fontSize: 11, color: "#9a3412", height: 32, lineHeight: 32 },
+  qtyBlock: { gap: 4, width: "100%" },
+  orderUnitsMeta: { fontSize: 11, color: "#57534e", fontWeight: "600", lineHeight: 14 },
+  orderWindowMeta: { fontSize: 10, color: "#78716c", lineHeight: 13 },
   cardControlsSlot: {
-    height: 32,
+    minHeight: 32,
     justifyContent: "center",
   },
   variantsBtn: {
@@ -730,11 +923,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   variantsBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  summaryFooter: {
+    paddingTop: 16,
+    paddingBottom: 8,
+    alignItems: "center",
+  },
+  viewSummaryBtn: {
+    backgroundColor: "#1e3a8a",
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    minWidth: 220,
+    alignItems: "center",
+  },
+  viewSummaryBtnDisabled: { opacity: 0.45 },
+  viewSummaryBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   variantsModal: {
     flex: 1,
     backgroundColor: "#fffbf7",
-    paddingTop: (Constants.statusBarHeight ?? 0) + 12,
-    paddingHorizontal: 16,
   },
   variantsModalHeader: {
     flexDirection: "row",
@@ -790,8 +996,7 @@ const styles = StyleSheet.create({
   },
   lightboxClose: {
     position: "absolute",
-    top: 56,
-    right: 24,
+    right: 20,
     padding: 8,
   },
   input: {
@@ -859,3 +1064,11 @@ const styles = StyleSheet.create({
   error: { color: "#b91c1c", marginBottom: 12, lineHeight: 20, paddingHorizontal: 8 },
   loginError: { textAlign: "center", width: "100%", maxWidth: 360 },
 });
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppShell />
+    </SafeAreaProvider>
+  );
+}

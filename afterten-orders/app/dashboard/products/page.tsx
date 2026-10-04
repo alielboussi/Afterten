@@ -25,7 +25,13 @@ export default async function ProductsPage() {
           {loadError}
           {loadError.includes("has_variants")
             ? " Run migration 20261001220000_product_variants_hide_rule_additions.sql on Supabase."
-            : loadError.includes("products") || loadError.includes("relation")
+            : loadError.includes("max_order_qty_days")
+              ? " Run migration 20261004210000_max_order_qty_days.sql on Supabase."
+              : loadError.includes("units_per_order_uom")
+              ? " Run migration 20261004110000_units_per_order_uom.sql on Supabase."
+              : loadError.includes("units_per_order_unit")
+                ? " Run migration 20261004100000_units_per_order_unit.sql on Supabase."
+              : loadError.includes("products") || loadError.includes("relation")
               ? " Run migration 20261001180000_products_catalog.sql on Supabase."
               : null}
         </p>

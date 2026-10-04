@@ -8,6 +8,7 @@ const nav = [
   { href: "/dashboard/products", label: "Products" },
   { href: "/dashboard/logic", label: "Logic" },
   { href: "/dashboard/outlet-users", label: "Outlet Users" },
+  { href: "/dashboard/supervisors", label: "Supervisors" },
   { href: "/dashboard/admins", label: "Portal Admins" },
 ];
 

@@ -21,6 +21,9 @@ type Initial = {
   qtyStep: number;
   minOrderQty: number | null;
   maxOrderQty: number | null;
+  maxOrderQtyDays: number | null;
+  unitsPerOrderUnit: number;
+  unitsPerOrderUom: string;
   hasVariants: boolean;
 };
 
@@ -51,6 +54,18 @@ export function ProductForm(props: Props) {
   const [maxOrderQty, setMaxOrderQty] = useState(
     isEdit && props.initial.maxOrderQty != null ? String(props.initial.maxOrderQty) : "",
   );
+  const [maxOrderQtyDays, setMaxOrderQtyDays] = useState(
+    isEdit && props.initial.maxOrderQtyDays != null ? String(props.initial.maxOrderQtyDays) : "",
+  );
+  const [unitsPerOrderUnit, setUnitsPerOrderUnit] = useState(
+    isEdit ? String(props.initial.unitsPerOrderUnit) : "1",
+  );
+  const [unitsPerOrderUom, setUnitsPerOrderUom] = useState(() => {
+    if (!isEdit) return "pcs";
+    const raw = props.initial.unitsPerOrderUom;
+    const t = (raw ?? "pcs").trim();
+    return t || "pcs";
+  });
   const [active, setActive] = useState(isEdit ? props.initial.active : true);
   const [liveQtyGateEnabled, setLiveQtyGateEnabled] = useState(
     isEdit ? props.initial.liveQtyGateEnabled : false,
@@ -118,6 +133,9 @@ export function ProductForm(props: Props) {
       qtyStep: Number(qtyStep) || 1,
       minOrderQty,
       maxOrderQty,
+      maxOrderQtyDays,
+      unitsPerOrderUnit: Number(unitsPerOrderUnit) || 1,
+      unitsPerOrderUom,
       hasVariants,
     };
 
@@ -276,6 +294,51 @@ export function ProductForm(props: Props) {
           />
         </label>
       </div>
+
+      <label className={styles.label}>
+        Max per rolling period (days, optional)
+        <input
+          className={styles.input}
+          type="number"
+          min={1}
+          step={1}
+          value={maxOrderQtyDays}
+          onChange={(e) => setMaxOrderQtyDays(e.target.value)}
+          placeholder="e.g. 7"
+          title="Requires max order qty — total this outlet may order in that many days"
+        />
+        <span className={styles.formHint} style={{ textAlign: "left", marginTop: 4 }}>
+          With max qty above: each outlet can order at most that total within the last N days (older orders drop off).
+        </span>
+      </label>
+
+      <div className={styles.twoCol}>
+        <label className={styles.label}>
+          Units per order
+          <input
+            className={styles.input}
+            type="number"
+            min={0.001}
+            step="any"
+            value={unitsPerOrderUnit}
+            onChange={(e) => setUnitsPerOrderUnit(e.target.value)}
+            title="Count in each UOM line — e.g. 25 for a tray of 25 meat pies"
+          />
+        </label>
+        <label className={styles.label}>
+          Unit UOM
+          <input
+            className={styles.input}
+            value={unitsPerOrderUom ?? "pcs"}
+            onChange={(e) => setUnitsPerOrderUom(e.target.value)}
+            placeholder="pcs, bottles…"
+            title="Label for qty × units per order on the outlet app"
+          />
+        </label>
+      </div>
+      <span className={styles.formHint} style={{ textAlign: "left", marginTop: -8, marginBottom: 12 }}>
+        Order qty stays in UOM above (e.g. trays). Outlet sees total = qty × units per order (e.g. 3 trays × 25 = 75 pcs).
+      </span>
 
       <div className={styles.label}>
         Image

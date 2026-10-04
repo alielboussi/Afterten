@@ -25,6 +25,8 @@ type VariantRow = {
   qty_step: number;
   min_order_qty: number | null;
   max_order_qty: number | null;
+  units_per_order_unit: number;
+  units_per_order_uom: string;
   active: boolean;
   live_qty_gate_enabled: boolean;
 };
@@ -51,6 +53,8 @@ function emptyDraft(sortOrder = 1): ProductVariantInput {
     qtyStep: 1,
     minOrderQty: "",
     maxOrderQty: "",
+    unitsPerOrderUnit: 1,
+    unitsPerOrderUom: "pcs",
     active: true,
     liveQtyGateEnabled: false,
   };
@@ -148,6 +152,8 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
       qtyStep: Number(row.qty_step),
       minOrderQty: row.min_order_qty != null ? String(row.min_order_qty) : "",
       maxOrderQty: row.max_order_qty != null ? String(row.max_order_qty) : "",
+      unitsPerOrderUnit: Number(row.units_per_order_unit ?? 1),
+      unitsPerOrderUom: String(row.units_per_order_uom ?? "pcs").trim() || "pcs",
       active: row.active,
       liveQtyGateEnabled: row.live_qty_gate_enabled,
     });
@@ -328,6 +334,10 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
                 />
               </label>
             </div>
+            <p className={styles.formHint} style={{ marginTop: -4, marginBottom: 12 }}>
+              Units per order and Unit UOM are set on the product form above and apply to every variant in
+              the outlet app.
+            </p>
             <div className={styles.twoCol}>
               <label className={styles.label}>
                 Variant sort

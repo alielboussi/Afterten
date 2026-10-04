@@ -11,5 +11,8 @@ export type ProductRow = {
   qtyStep: number;
   minOrderQty: number | null;
   maxOrderQty: number | null;
+  maxOrderQtyDays: number | null;
+  unitsPerOrderUnit: number;
+  unitsPerOrderUom: string;
   hasVariants: boolean;
 };

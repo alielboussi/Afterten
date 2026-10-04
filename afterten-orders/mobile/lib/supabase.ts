@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { applyParentCatalogToProduct } from "./catalog-lines";
+import { orderQtyCap } from "./order-qty-limits";
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -63,6 +65,10 @@ export type OutletProductVariant = {
   qty_step: number;
   min_order_qty: number | null;
   max_order_qty: number | null;
+  max_order_qty_days: number | null;
+  window_ordered_qty: number | null;
+  units_per_order_unit: number;
+  units_per_order_uom: string;
 };
 
 export type OutletProduct = {
@@ -77,13 +83,24 @@ export type OutletProduct = {
   qty_step: number;
   min_order_qty: number | null;
   max_order_qty: number | null;
+  max_order_qty_days: number | null;
+  window_ordered_qty: number | null;
+  units_per_order_unit: number;
+  units_per_order_uom: string;
   has_variants: boolean;
   variants: OutletProductVariant[];
 };
 
 export type OrderQtyLine = Pick<
   OutletProduct,
-  "qty_step" | "min_order_qty" | "max_order_qty"
+  | "qty_step"
+  | "min_order_qty"
+  | "max_order_qty"
+  | "max_order_qty_days"
+  | "window_ordered_qty"
+  | "units_per_order_unit"
+  | "units_per_order_uom"
+  | "uom"
 >;
 
 export function clampOrderQty(line: OrderQtyLine, qty: number): number {
@@ -92,8 +109,9 @@ export function clampOrderQty(line: OrderQtyLine, qty: number): number {
   if (line.min_order_qty != null && next < line.min_order_qty) {
     next = line.min_order_qty;
   }
-  if (line.max_order_qty != null && next > line.max_order_qty) {
-    next = line.max_order_qty;
+  const cap = orderQtyCap(line);
+  if (cap != null && next > cap) {
+    next = cap;
   }
   if (next <= 0) return 0;
   const steps = Math.round(next / step);
@@ -113,6 +131,11 @@ function mapVariant(raw: Record<string, unknown>): OutletProductVariant {
     qty_step: Number(raw.qty_step ?? 1),
     min_order_qty: raw.min_order_qty != null ? Number(raw.min_order_qty) : null,
     max_order_qty: raw.max_order_qty != null ? Number(raw.max_order_qty) : null,
+    max_order_qty_days: raw.max_order_qty_days != null ? Number(raw.max_order_qty_days) : null,
+    window_ordered_qty:
+      raw.window_ordered_qty != null ? Number(raw.window_ordered_qty) : null,
+    units_per_order_unit: Number(raw.units_per_order_unit ?? 1),
+    units_per_order_uom: String(raw.units_per_order_uom ?? "pcs").trim() || "pcs",
   };
 }
 
@@ -134,6 +157,11 @@ function mapOutletProduct(raw: Record<string, unknown>): OutletProduct {
     qty_step: Number(raw.qty_step ?? 1),
     min_order_qty: raw.min_order_qty != null ? Number(raw.min_order_qty) : null,
     max_order_qty: raw.max_order_qty != null ? Number(raw.max_order_qty) : null,
+    max_order_qty_days: raw.max_order_qty_days != null ? Number(raw.max_order_qty_days) : null,
+    window_ordered_qty:
+      raw.window_ordered_qty != null ? Number(raw.window_ordered_qty) : null,
+    units_per_order_unit: Number(raw.units_per_order_unit ?? 1),
+    units_per_order_uom: String(raw.units_per_order_uom ?? "pcs").trim() || "pcs",
     has_variants: Boolean(raw.has_variants),
     variants,
   };
@@ -144,7 +172,9 @@ export async function fetchOutletProducts(
 ): Promise<{ products: OutletProduct[]; error: string | null }> {
   const { data, error } = await supabase.rpc("list_outlet_products");
   if (error) return { products: [], error: error.message };
-  const products = (data ?? []).map((row: Record<string, unknown>) => mapOutletProduct(row));
+  const products = (data ?? []).map((row: Record<string, unknown>) =>
+    applyParentCatalogToProduct(mapOutletProduct(row)),
+  );
   return { products, error: null };
 }
 

@@ -22,6 +22,8 @@ export type ProductVariantInput = {
   qtyStep: number;
   minOrderQty: string;
   maxOrderQty: string;
+  unitsPerOrderUnit: number;
+  unitsPerOrderUom: string;
   active: boolean;
   liveQtyGateEnabled: boolean;
 };
@@ -44,7 +46,7 @@ export async function listProductVariants(parentProductId: string) {
   const { data, error } = await admin
     .from("product_variants")
     .select(
-      "id, variant_id, name, uom, unit_cost, image_url, sort_order, qty_step, min_order_qty, max_order_qty, active, live_qty_gate_enabled",
+      "id, variant_id, name, uom, unit_cost, image_url, sort_order, qty_step, min_order_qty, max_order_qty, units_per_order_unit, units_per_order_uom, active, live_qty_gate_enabled",
     )
     .eq("product_id", pid)
     .order("sort_order")

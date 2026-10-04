@@ -1,4 +1,5 @@
 import { Image, Platform, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import { useCachedRemoteImage } from "../hooks/useCachedRemoteImage";
 
 type Props = {
   uri: string;
@@ -8,6 +9,7 @@ export function ZoomableImage({ uri }: Props) {
   const { width, height } = useWindowDimensions();
   const frameW = width - 48;
   const frameH = height * 0.72;
+  const { uri: displayUri } = useCachedRemoteImage(uri);
 
   return (
     <ScrollView
@@ -20,7 +22,9 @@ export function ZoomableImage({ uri }: Props) {
       showsHorizontalScrollIndicator={false}
       showsVerticalScrollIndicator={false}
     >
-      <Image source={{ uri }} style={{ width: frameW, height: frameH }} resizeMode="contain" />
+      {displayUri ? (
+        <Image source={{ uri: displayUri }} style={{ width: frameW, height: frameH }} resizeMode="contain" />
+      ) : null}
     </ScrollView>
   );
 }

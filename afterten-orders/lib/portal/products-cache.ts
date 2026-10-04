@@ -20,12 +20,15 @@ function mapProduct(row: Record<string, unknown>): ProductRow {
     qtyStep: Number(row.qty_step ?? 1),
     minOrderQty: row.min_order_qty != null ? Number(row.min_order_qty) : null,
     maxOrderQty: row.max_order_qty != null ? Number(row.max_order_qty) : null,
+    maxOrderQtyDays: row.max_order_qty_days != null ? Number(row.max_order_qty_days) : null,
+    unitsPerOrderUnit: Number(row.units_per_order_unit ?? 1),
+    unitsPerOrderUom: String(row.units_per_order_uom ?? "pcs").trim() || "pcs",
     hasVariants: Boolean(row.has_variants),
   };
 }
 
 const productSelect =
-  "id, product_id, name, uom, unit_cost, image_url, active, live_qty_gate_enabled, sort_order, qty_step, min_order_qty, max_order_qty, has_variants";
+  "id, product_id, name, uom, unit_cost, image_url, active, live_qty_gate_enabled, sort_order, qty_step, min_order_qty, max_order_qty, max_order_qty_days, units_per_order_unit, units_per_order_uom, has_variants";
 
 async function fetchProductsList(): Promise<ProductRow[]> {
   const admin = createAdminClient();
@@ -35,7 +38,7 @@ async function fetchProductsList(): Promise<ProductRow[]> {
 }
 
 export function getCachedProductsList() {
-  return unstable_cache(fetchProductsList, ["products-list-v2"], {
+  return unstable_cache(fetchProductsList, ["products-list-v3"], {
     revalidate: 60,
     tags: ["products-list"],
   })();
@@ -50,7 +53,7 @@ export function getCachedProduct(id: string) {
       if (!data) return null;
       return mapProduct(data as Record<string, unknown>);
     },
-    ["product-row-v2", id],
+    ["product-row-v3", id],
     { revalidate: 30, tags: ["products-list", `product-${id}`] },
   )();
 }
