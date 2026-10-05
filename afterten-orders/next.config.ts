@@ -1,6 +1,27 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
+/** PDFKit on Vercel needs AFM data + standard-fonts .cjs modules in the serverless bundle. */
+const PDFKIT_OUTPUT_TRACE = [
+  "./node_modules/pdfkit/js/data/**/*",
+  "./node_modules/pdfkit/js/standard-fonts/**/*",
+  "./lib/assets/afterten-logo.png",
+];
+
+const PDF_API_ROUTES = [
+  "/api/outlet-app/ensure-order-pdf",
+  "/api/outlet-app/ensure-approved-order-pdf",
+  "/api/outlet-app/ensure-driver-handoff-pdf",
+  "/api/webhooks/outlet-order-placed",
+  "/api/webhooks/supervisor-order-accepted",
+  "/api/webhooks/driver-handoff-pdf",
+  "/api/portal/orders/pdf",
+] as const;
+
+const outputFileTracingIncludes = Object.fromEntries(
+  PDF_API_ROUTES.map((route) => [route, PDFKIT_OUTPUT_TRACE]),
+) as Record<string, string[]>;
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(process.cwd()),
@@ -11,24 +32,7 @@ const nextConfig: NextConfig = {
     "fontkit",
     "sharp",
   ],
-  outputFileTracingIncludes: {
-    "/api/outlet-app/ensure-order-pdf": [
-      "./node_modules/pdfkit/js/data/**/*",
-      "./lib/assets/afterten-logo.png",
-    ],
-    "/api/outlet-app/ensure-approved-order-pdf": [
-      "./node_modules/pdfkit/js/data/**/*",
-      "./lib/assets/afterten-logo.png",
-    ],
-    "/api/webhooks/supervisor-order-accepted": [
-      "./node_modules/pdfkit/js/data/**/*",
-      "./lib/assets/afterten-logo.png",
-    ],
-    "/api/**": [
-      "./node_modules/pdfkit/js/data/**/*",
-      "./lib/assets/afterten-logo.png",
-    ],
-  },
+  outputFileTracingIncludes,
   experimental: {
     serverActions: {
       // Product image uploads (Supabase bucket max 5 MB); default Next limit is 1 MB.
