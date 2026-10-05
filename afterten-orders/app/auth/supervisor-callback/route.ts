@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 
 /**
- * Mobile OAuth return URL for the Supervisor Expo app.
- * Supabase redirects here after Google sign-in. Expo WebBrowser on Android often
- * cannot read URL hash fragments — rewrite hash to query so openAuthSessionAsync
- * receives tokens/code and closes back to the app (works in Expo Go and dev builds).
+ * Supervisor mobile OAuth bridge (not portal login).
+ * Supabase redirects here (HTTPS, always allowlisted). This page forwards auth params
+ * to the Expo app deep link in ?app_return= so Android Linking can close the browser.
  */
 export async function GET() {
   const html = `<!DOCTYPE html>
@@ -19,22 +18,33 @@ export async function GET() {
   </style>
 </head>
 <body>
-  <p><strong>Finishing sign-in…</strong></p>
-  <p id="fallback" hidden>This window should close automatically. If it stays open for more than a few seconds, tap × once to return to the app.</p>
+  <p><strong>Returning to Afterten Supervisor…</strong></p>
+  <p id="err" hidden style="color:#b91c1c"></p>
   <script>
     (function () {
-      var hash = location.hash;
-      if (hash && hash.length > 1) {
-        var merged =
-          location.pathname +
-          (location.search ? location.search + "&" + hash.slice(1) : "?" + hash.slice(1));
-        location.replace(merged);
-        return;
+      try {
+        var searchParams = new URLSearchParams(location.search);
+        var appReturn = searchParams.get("app_return");
+        searchParams.delete("app_return");
+        if (!appReturn) appReturn = "afterten-supervisor://auth/callback";
+
+        if (location.hash && location.hash.length > 1) {
+          new URLSearchParams(location.hash.slice(1)).forEach(function (value, key) {
+            searchParams.set(key, value);
+          });
+        }
+
+        var payload = searchParams.toString();
+        var sep = appReturn.indexOf("?") >= 0 ? "&" : "?";
+        var target = payload ? appReturn + sep + payload : appReturn;
+        location.replace(target);
+      } catch (e) {
+        var el = document.getElementById("err");
+        if (el) {
+          el.hidden = false;
+          el.textContent = "Could not open the Supervisor app. Close this window and try again in the app.";
+        }
       }
-      setTimeout(function () {
-        var el = document.getElementById("fallback");
-        if (el) el.hidden = false;
-      }, 2500);
     })();
   </script>
 </body>

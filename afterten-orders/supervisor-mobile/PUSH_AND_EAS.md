@@ -8,7 +8,7 @@ Copy from the outlet app:
 cp ../mobile/.env .env
 ```
 
-Only Supabase URL + anon key are required in `.env`.
+Set `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_PORTAL_URL` (e.g. `https://aftertentransfers.app`).
 
 Portal / Vercel (order webhook + WhatsApp):
 
@@ -35,12 +35,21 @@ WhatsApp group alerts still come from the portal webhook. Optional background pu
 
 ## Google sign-in
 
-Supabase → Authentication → URL configuration → **Redirect URLs** — add **every** URL your app uses:
+Supervisor OAuth uses a **portal bridge** so Supabase never sends users to the website home (“Access not allowed” for non–portal-admins).
 
-1. **Production / dev build:** `afterten-supervisor://auth/callback`
-2. **Expo Go:** copy the exact `exp://…/--/auth/callback` string from the login screen (dev builds only show it). Add that URL to Supabase whenever your machine IP or Metro port changes.
+In **Supabase → Authentication → URL configuration → Redirect URLs**, add **all** of:
 
-Do **not** use the portal HTTPS callback for mobile OAuth on Android; the in-app browser only completes when Supabase redirects to the app deep link above.
+```
+https://aftertentransfers.app/auth/supervisor-callback**
+afterten-supervisor://auth/callback
+exp://**
+```
+
+(Use your portal host if `EXPO_PUBLIC_PORTAL_URL` differs. Supabase supports `**` wildcards.)
+
+Flow: Google → Supabase → `…/auth/supervisor-callback?app_return=<exp or custom scheme>` → app deep link → session in the Supervisor app only.
+
+In Expo Go, copy the URLs from the login screen (dev) if sign-in fails.
 
 ## Icon preview
 

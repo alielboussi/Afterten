@@ -1,21 +1,19 @@
 import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
 import * as QueryParams from "expo-auth-session/build/QueryParams";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  getSupervisorAppReturnUri,
+  getSupervisorSupabaseRedirectAllowlistHint,
+  getSupervisorSupabaseRedirectUri,
+} from "./supervisor-oauth-urls";
 
 WebBrowser.maybeCompleteAuthSession();
 
 const SIGN_IN_TIMEOUT_MS = 120_000;
 
-/**
- * Deep link Supabase must redirect to. On Android, openAuthSessionAsync only completes
- * when Linking receives this URL — an HTTPS portal URL will never return to the app.
- */
+/** @deprecated Use getSupervisorAppReturnUri — kept for login screen hint. */
 export function getSupervisorOAuthRedirectUri(): string {
-  return makeRedirectUri({
-    scheme: "afterten-supervisor",
-    path: "auth/callback",
-  });
+  return getSupervisorAppReturnUri();
 }
 
 async function createSessionFromUrl(supabase: SupabaseClient, url: string) {
@@ -54,7 +52,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 export async function signInWithGoogle(supabase: SupabaseClient): Promise<{ error: string | null }> {
-  const redirectTo = getSupervisorOAuthRedirectUri();
+  const appReturn = getSupervisorAppReturnUri();
+  const redirectTo = getSupervisorSupabaseRedirectUri();
 
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -62,24 +61,26 @@ export async function signInWithGoogle(supabase: SupabaseClient): Promise<{ erro
       options: {
         redirectTo,
         skipBrowserRedirect: true,
+        queryParams: { prompt: "select_account" },
       },
     });
     if (error) return { error: error.message };
     if (!data?.url) return { error: "Could not start Google sign-in." };
 
     const result = await withTimeout(
-      WebBrowser.openAuthSessionAsync(data.url, redirectTo),
+      WebBrowser.openAuthSessionAsync(data.url, appReturn),
       SIGN_IN_TIMEOUT_MS,
-      "Sign-in timed out. Confirm this redirect URL is in Supabase → Auth → Redirect URLs.",
+      "Sign-in timed out waiting for the app link after Google.",
     );
 
     if (result.type !== "success") {
-      if (result.type === "cancel" || result.type === "dismiss") {
-        return {
-          error: `Sign-in did not finish. Add this redirect URL in Supabase Auth settings: ${redirectTo}`,
-        };
-      }
-      return { error: "Google sign-in failed." };
+      return {
+        error: [
+          "Supervisor sign-in did not return to the app.",
+          "In Supabase → Auth → Redirect URLs, add:",
+          getSupervisorSupabaseRedirectAllowlistHint(),
+        ].join("\n"),
+      };
     }
 
     await createSessionFromUrl(supabase, result.url);
@@ -87,7 +88,7 @@ export async function signInWithGoogle(supabase: SupabaseClient): Promise<{ erro
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Google sign-in failed.";
     return {
-      error: `${msg} Redirect URL: ${redirectTo}`,
+      error: `${msg}\n\nSupabase Redirect URLs:\n${getSupervisorSupabaseRedirectAllowlistHint()}`,
     };
   }
 }

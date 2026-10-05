@@ -16,7 +16,12 @@ import {
   supervisorDisplayName,
   type SupervisorProfile,
 } from "./lib/supabase";
-import { getSupervisorOAuthRedirectUri, signInWithGoogle } from "./lib/google-auth";
+import {
+  getSupervisorAppReturnUri,
+  getSupervisorSupabaseRedirectAllowlistHint,
+  getSupervisorSupabaseRedirectUri,
+} from "./lib/supervisor-oauth-urls";
+import { signInWithGoogle } from "./lib/google-auth";
 import { subscribeToNewOutletOrders } from "./lib/order-realtime";
 import { OrdersScreen } from "./components/OrdersScreen";
 import { ToastBanner } from "./components/ToastBanner";
@@ -201,8 +206,14 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
 
       {__DEV__ ? (
         <Text selectable style={styles.devHint}>
-          Supabase redirect URL (add under Auth → Redirect URLs):{"\n"}
-          {getSupervisorOAuthRedirectUri()}
+          Supabase → Auth → Redirect URLs (add all lines):{"\n"}
+          {getSupervisorSupabaseRedirectAllowlistHint()}
+          {"\n\n"}
+          OAuth redirect_to:{"\n"}
+          {getSupervisorSupabaseRedirectUri()}
+          {"\n\n"}
+          App return link:{"\n"}
+          {getSupervisorAppReturnUri()}
         </Text>
       ) : null}
 
