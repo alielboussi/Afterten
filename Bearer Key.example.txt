@@ -1,0 +1,5 @@
+# Copy to `Bearer Key.txt` in this folder (repo root) and paste one long random secret.
+# On Vercel, set SUPERVISOR_ACCEPTED_ORDERS_BEARER_KEY to the same value instead.
+#
+# Example (do not use in production):
+# afterten-integration-dev-only-change-me-8f3k2m9x

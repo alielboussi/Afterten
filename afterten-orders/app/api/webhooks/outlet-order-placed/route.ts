@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import {
-  formatOutletOrderWhatsAppMessage,
   sendExpoPushBatch,
-  sendWasenderGroupText,
-  whatsAppSkipReason,
 } from "@/lib/integrations/outlet-order-notify";
 import { generateAndStoreOutletOrderPdf } from "@/lib/integrations/outlet-order-pdf";
 
@@ -15,19 +12,6 @@ function formatKwacha(amount: number): string {
   const [intPart, decPart] = safe.toFixed(2).split(".");
   const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return `K ${withCommas}.${decPart}`;
-}
-
-function formatKitwe(iso: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Africa/Lusaka",
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date(iso));
 }
 
 export async function POST(req: Request) {
@@ -62,36 +46,6 @@ export async function POST(req: Request) {
 
   const pdfResult = await generateAndStoreOutletOrderPdf(admin, orderId);
 
-  const { count: lineCount } = await admin
-    .from("outlet_order_items")
-    .select("id", { count: "exact", head: true })
-    .eq("order_id", orderId);
-
-  const whatsappText = formatOutletOrderWhatsAppMessage({
-    orderNumber: order.order_number,
-    outletName: order.outlet_name,
-    outletId: order.outlet_id,
-    employeeName: order.employee_name?.trim() || "—",
-    grandTotalFormatted: formatKwacha(Number(order.grand_total)),
-    placedAtKitwe: formatKitwe(order.created_at),
-    lineCount: lineCount ?? 0,
-  });
-
-  const wasenderKey = process.env.WASENDER_API_KEY?.trim();
-  const groupJid = process.env.WHATSAPP_ORDERS_GROUP_JID?.trim();
-  const skip = whatsAppSkipReason({ wasenderKey, groupJid });
-  let whatsapp: { ok: boolean; skipped?: boolean; error?: string };
-  if (skip) {
-    whatsapp = { ok: false, skipped: true, error: skip };
-  } else {
-    const sent = await sendWasenderGroupText({
-      apiKey: wasenderKey!,
-      groupJid: groupJid!,
-      text: whatsappText,
-    });
-    whatsapp = sent.ok ? { ok: true } : { ok: false, error: sent.error };
-  }
-
   const { data: tokenRows } = await admin
     .from("supervisor_push_tokens")
     .select("expo_push_token")
@@ -107,8 +61,6 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     pdf: pdfResult.ok ? { path: pdfResult.pdfPath, fileName: pdfResult.fileName } : { error: pdfResult.error },
-    whatsapp,
     pushTokens: tokens.length,
-    preview: whatsappText,
   });
 }

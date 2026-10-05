@@ -1,6 +1,68 @@
 /**
- * Plain-text WhatsApp body for a newly placed outlet order (WasenderAPI).
+ * WhatsApp bodies for order alerts (WasenderAPI). Group JID from WHATSAPP_ORDERS_GROUP_JID.
  */
+export type OrderWhatsAppLineKind = "product" | "variant" | "auto";
+
+export type OrderWhatsAppLine = {
+  kind: OrderWhatsAppLineKind;
+  productName: string;
+  variantName: string | null;
+  qty: number;
+  uom: string | null;
+};
+
+function formatQty(qty: number): string {
+  return Number.isInteger(qty) || qty % 1 === 0 ? String(Math.round(qty)) : String(qty);
+}
+
+function formatItemBulletLines(lines: OrderWhatsAppLine[]): string[] {
+  if (lines.length === 0) return ["📭 (no lines)"];
+  return lines.map((line) => {
+    const uom = line.uom?.trim() ? ` ${line.uom.trim()}` : "";
+    const qty = formatQty(line.qty);
+
+    if (line.kind === "product") {
+      return `📦 ${line.productName} x ${qty}${uom}`;
+    }
+
+    const variantPart = line.variantName?.trim() ? ` *${line.variantName.trim()}*` : "";
+    if (line.kind === "variant") {
+      return `- 📦 *${line.productName}* x ${qty}${variantPart}${uom}`;
+    }
+
+    return `- 📦 *${line.productName}* x ${qty}${variantPart}${uom}`;
+  });
+}
+
+/** Sent when a supervisor accepts an outlet order (not at placement). */
+export type SupervisorAcceptedWhatsAppPayload = {
+  orderNumber: string;
+  orderId: string;
+  outletName: string;
+  outletId: string;
+  employeeName: string;
+  grandTotalFormatted: string;
+  acceptedAtKitwe: string;
+  lines: OrderWhatsAppLine[];
+};
+
+export function formatSupervisorAcceptedWhatsAppMessage(p: SupervisorAcceptedWhatsAppPayload): string {
+  const body = [
+    "✅ *Order accepted*",
+    "",
+    `📋 *Order:* ${p.orderNumber}`,
+    `🏪 *Outlet:* ${p.outletName}`,
+    `👤 *Placed by:* ${p.employeeName}`,
+    `💰 *Total:* ${p.grandTotalFormatted}`,
+    `🕐 *Accepted:* ${p.acceptedAtKitwe} (Kitwe)`,
+    "",
+    "🛍️ *Items:*",
+    ...formatItemBulletLines(p.lines),
+  ];
+  return body.join("\n");
+}
+
+/** @deprecated Use formatSupervisorAcceptedWhatsAppMessage — WhatsApp no longer sent on placement. */
 export type OutletOrderWhatsAppPayload = {
   orderNumber: string;
   outletName: string;
@@ -11,6 +73,7 @@ export type OutletOrderWhatsAppPayload = {
   lineCount: number;
 };
 
+/** @deprecated WhatsApp moved to supervisor accept webhook. */
 export function formatOutletOrderWhatsAppMessage(p: OutletOrderWhatsAppPayload): string {
   const lines = [
     "🛒 *New outlet order*",
@@ -20,18 +83,12 @@ export function formatOutletOrderWhatsAppMessage(p: OutletOrderWhatsAppPayload):
     `*Placed by:* ${p.employeeName}`,
     `*Total:* ${p.grandTotalFormatted}`,
     `*When:* ${p.placedAtKitwe} (Kitwe)`,
-    `*Lines:* ${p.lineCount}`,
-    "",
-    "_Afterten Orders_",
+    `📊 *Lines:* ${p.lineCount}`,
   ];
   return lines.join("\n");
 }
 
-export type DriverLoadedWhatsAppLine = {
-  name: string;
-  qty: number;
-  uom: string | null;
-};
+export type DriverLoadedWhatsAppLine = OrderWhatsAppLine;
 
 export type DriverLoadedWhatsAppPayload = {
   orderNumber: string;
@@ -44,24 +101,16 @@ export type DriverLoadedWhatsAppPayload = {
 };
 
 export function formatDriverLoadedWhatsAppMessage(p: DriverLoadedWhatsAppPayload): string {
-  const itemLines = p.lines.map((line) => {
-    const uom = line.uom?.trim() ? ` ${line.uom.trim()}` : "";
-    return `• ${line.qty} × ${line.name}${uom}`;
-  });
-
   const body = [
-    "🚚 *Order loaded & dispatched*",
+    "🚚 *Order dispatched*",
     "",
-    `*Order:* ${p.orderNumber}`,
-    `*Order ID:* ${p.orderId}`,
-    `*Outlet:* ${p.outletName} (${p.outletId})`,
-    `*Driver:* ${p.driverName}`,
-    `*When:* ${p.loadedAtKitwe} (Kitwe)`,
+    `📋 *Order:* ${p.orderNumber}`,
+    `🏪 *Outlet:* ${p.outletName}`,
+    `👨‍✈️ *Driver:* ${p.driverName}`,
+    `🕐 *Dispatched:* ${p.loadedAtKitwe} (Kitwe)`,
     "",
-    "*Items:*",
-    ...(itemLines.length > 0 ? itemLines : ["• (no lines)"]),
-    "",
-    "_Afterten Orders_",
+    "🛍️ *Items:*",
+    ...formatItemBulletLines(p.lines),
   ];
   return body.join("\n");
 }

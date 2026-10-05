@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin-server";
+import { sendSupervisorAcceptedOrderWhatsApp } from "@/lib/integrations/order-whatsapp-alerts";
 import { generateAndStoreApprovedOrderPdf } from "@/lib/integrations/outlet-order-pdf";
 
 export const runtime = "nodejs";
 
 /**
- * Builds the supervisor-approved PDF after accept (pg_net from accept_supervisor_order).
- * Auth: x-order-notify-secret must match ORDER_NOTIFY_WEBHOOK_SECRET (same as outlet-order-placed).
+ * Approved PDF + WhatsApp group alert after supervisor accept (pg_net from accept_supervisor_order).
  */
 export async function POST(req: Request) {
   const secret = process.env.ORDER_NOTIFY_WEBHOOK_SECRET?.trim();
@@ -43,10 +43,18 @@ export async function POST(req: Request) {
       console.error("[supervisor-order-accepted]", result.error);
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
+
+    const wa = await sendSupervisorAcceptedOrderWhatsApp(admin, orderId);
+    const whatsapp = wa.ok
+      ? { ok: true as const }
+      : { ok: false as const, skipped: wa.skipped, error: wa.error };
+
     return NextResponse.json({
       ok: true,
       pdf_path: result.pdfPath,
       file_name: result.fileName,
+      whatsapp,
+      preview: wa.ok ? wa.preview : undefined,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "PDF build failed.";

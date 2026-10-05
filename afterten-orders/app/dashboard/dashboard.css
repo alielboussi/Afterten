@@ -822,3 +822,112 @@
   font-size: 0.9rem;
   text-decoration: none;
 }
+
+/* Outlet orders table */
+.at-orderIdMuted {
+  font-size: 0.72rem;
+  color: var(--afterten-muted);
+  margin-top: 4px;
+  word-break: break-all;
+  text-align: left;
+}
+
+.at-orderStatusPill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.at-orderStatusPlaced {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.at-orderStatusAccepted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.at-orderStatusLoaded {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.at-orderStatusCompleted {
+  background: #ecfdf5;
+  color: var(--afterten-green);
+}
+
+.at-orderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.at-btnSecondary {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--afterten-border);
+  background: #fff;
+  color: var(--afterten-red-dark);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.at-btnSecondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.at-btnCompact {
+  padding: 5px 10px;
+  font-size: 0.72rem;
+}
+
+.at-orderActionMuted {
+  color: var(--afterten-muted);
+  font-size: 0.85rem;
+}
+
+.at-page-msgOk {
+  margin: 0 auto 20px;
+  max-width: 36rem;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: var(--afterten-green);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.at-orders-table .at-table td:first-child,
+.at-orders-table .at-table th:first-child {
+  text-align: left;
+}
+
+.at-orderMetaGrid {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) 1fr;
+  gap: 8px 16px;
+  font-size: 0.9rem;
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.at-orderMetaGrid dt {
+  font-weight: 600;
+  color: var(--afterten-muted);
+  text-align: right;
+}
+
+.at-orderMetaGrid dd {
+  margin: 0;
+  word-break: break-word;
+}

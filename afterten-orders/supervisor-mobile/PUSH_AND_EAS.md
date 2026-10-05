@@ -28,13 +28,13 @@ set
 where id = 'default';
 ```
 
-If **WhatsApp does not arrive** when an outlet places an order (but the order saves):
+If **WhatsApp does not arrive** when a supervisor accepts an order:
 
 1. On **Vercel**, confirm `ORDER_NOTIFY_WEBHOOK_SECRET`, `WASENDER_API_KEY`, and `WHATSAPP_ORDERS_GROUP_JID` are set for Production (then redeploy).
-2. In Supabase, `order_notify_config.webhook_secret` must **exactly match** `ORDER_NOTIFY_WEBHOOK_SECRET`. A mismatch returns HTTP 401 from the webhook; the app still succeeds because `pg_net` is fire-and-forget.
-3. After deploy, POST the webhook manually with header `x-order-notify-secret` and body `{"order_id":"<uuid>"}` — the JSON response includes `whatsapp.ok` / `whatsapp.error` (missing Wasender env vars show as `skipped: true`).
+2. In Supabase, `order_notify_config.webhook_secret` must **exactly match** `ORDER_NOTIFY_WEBHOOK_SECRET`. A mismatch returns HTTP 401 from the webhook; accept still succeeds because `pg_net` is fire-and-forget.
+3. After deploy, POST `https://YOUR_PORTAL_HOST/api/webhooks/supervisor-order-accepted` with header `x-order-notify-secret` and body `{"order_id":"<uuid>"}` — the JSON includes `whatsapp` and `preview`.
 
-Dispatch (loaded) WhatsApp uses the same group JID and secret; it runs when the supervisor taps **Dispatch** after driver + signature (`driver_loaded_webhook_url` → `/api/webhooks/driver-order-loaded`).
+**WhatsApp timing:** (1) **Order accepted** → `/api/webhooks/supervisor-order-accepted` (not on outlet placement). (2) **Dispatched** → `/api/webhooks/driver-order-loaded` when the supervisor taps **Dispatch** after driver + signature.
 
 ## New order alerts (in-app)
 

@@ -411,7 +411,7 @@ export async function generateAndStoreApprovedOrderPdf(
 
   if (orderErr) return { ok: false, error: orderErr.message };
   if (!order) return { ok: false, error: "Order not found." };
-  if (order.status !== "accepted") {
+  if (!["accepted", "loaded", "completed"].includes(String(order.status))) {
     return { ok: false, error: "Order is not supervisor-approved yet." };
   }
 
@@ -536,7 +536,7 @@ export async function generateAndStoreDriverHandoffPdf(
 
   if (orderErr) return { ok: false, error: orderErr.message };
   if (!order) return { ok: false, error: "Order not found." };
-  if (order.status !== "loaded") {
+  if (!["loaded", "completed"].includes(String(order.status))) {
     return { ok: false, error: "Order is not loaded yet." };
   }
 

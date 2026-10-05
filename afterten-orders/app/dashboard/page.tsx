@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getUncategorizedUsers } from "@/lib/portal/uncategorized-users";
 import { NewUserTriagePanel } from "./NewUserTriagePanel";
 
@@ -20,7 +21,11 @@ export default async function DashboardHomePage() {
           New Google sign-ins are assigned on this page (portal admin, supervisor, or outlet).{" "}
           <strong>Portal Admins</strong> lists dashboard access only.{" "}
           <strong>Supervisors</strong> lists the supervisor app.{" "}
-          <strong>Outlet Users</strong> lists Expo Orders app accounts.
+          <strong>Outlet Users</strong> lists Expo Orders app accounts.{" "}
+          <strong>
+            <Link href="/dashboard/orders">Orders</Link>
+          </strong>{" "}
+          shows all outlet orders, status, PDFs, and WhatsApp actions.
         </p>
       </div>
     </>
