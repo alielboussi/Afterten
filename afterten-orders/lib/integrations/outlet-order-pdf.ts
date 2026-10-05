@@ -328,6 +328,116 @@ export async function generateAndStoreOutletOrderPdf(
   return { ok: true, pdfPath, fileName };
 }
 
+export async function generateAndStoreApprovedOrderPdf(
+  admin: SupabaseClient,
+  orderId: string,
+): Promise<{ ok: true; pdfPath: string; fileName: string } | { ok: false; error: string }> {
+  const { data: order, error: orderErr } = await admin
+    .from("outlet_orders")
+    .select(
+      "id, outlet_id, outlet_name, order_number, employee_name, employee_signature_path, grand_total, created_at, status, approved_pdf_path",
+    )
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (orderErr) return { ok: false, error: orderErr.message };
+  if (!order) return { ok: false, error: "Order not found." };
+  if (order.status !== "accepted") {
+    return { ok: false, error: "Order is not supervisor-approved yet." };
+  }
+
+  const existingPath =
+    typeof order.approved_pdf_path === "string" && order.approved_pdf_path.trim()
+      ? order.approved_pdf_path.trim()
+      : null;
+  if (existingPath) {
+    const existingKey = existingPath.replace(/^approved-orders\//, "");
+    const { data: existingFile, error: existingErr } = await admin.storage
+      .from("approved-orders")
+      .download(existingKey);
+    if (!existingErr && existingFile) {
+      const fileName = existingKey.split("/").pop() ?? "order.pdf";
+      return { ok: true, pdfPath: existingPath, fileName };
+    }
+  }
+
+  const { data: items, error: itemsErr } = await admin
+    .from("outlet_order_items")
+    .select("name, qty, uom, line_total, sort_order")
+    .eq("order_id", orderId)
+    .order("sort_order", { ascending: true });
+
+  if (itemsErr) return { ok: false, error: itemsErr.message };
+
+  const placedAtLabel = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Lusaka",
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(order.created_at as string));
+
+  const grandTotal = Number(order.grand_total ?? 0);
+  const grandFormatted = formatKwacha(grandTotal);
+
+  const lines: OrderPdfLine[] = (items ?? []).map((row) => {
+    const qty = Number(row.qty ?? 0);
+    const lt = Number(row.line_total ?? 0);
+    return {
+      name: String(row.name ?? ""),
+      qty: Number.isInteger(qty) ? String(qty) : qty.toFixed(2),
+      uom: String(row.uom ?? ""),
+      amount: lt > 0 ? formatKwacha(lt) : "",
+      isSub: false,
+    };
+  });
+
+  const signaturePng = await loadSignaturePng(
+    admin,
+    order.employee_signature_path as string | null,
+  );
+
+  const pdfBuffer = await renderOutletOrderPdf({
+    outletName: String(order.outlet_name),
+    outletId: String(order.outlet_id),
+    orderNumber: String(order.order_number),
+    placedAtLabel: `${placedAtLabel} (Kitwe)`,
+    employeeName: String(order.employee_name ?? "").trim() || "—",
+    grandTotalFormatted: grandFormatted,
+    lines,
+    signaturePng,
+  });
+
+  const fileName = buildOrderPdfFileName(
+    String(order.outlet_name),
+    String(order.order_number),
+    new Date(order.created_at as string),
+  );
+  const storageKey = `${order.outlet_id}/${order.id}/${fileName}`;
+  const pdfPath = `approved-orders/${storageKey}`;
+
+  const { error: uploadErr } = await admin.storage
+    .from("approved-orders")
+    .upload(storageKey, pdfBuffer, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+  if (uploadErr) return { ok: false, error: uploadErr.message };
+
+  const { error: updateErr } = await admin
+    .from("outlet_orders")
+    .update({ approved_pdf_path: pdfPath, updated_at: new Date().toISOString() })
+    .eq("id", orderId);
+
+  if (updateErr) return { ok: false, error: updateErr.message };
+
+  return { ok: true, pdfPath, fileName };
+}
+
 function formatKwacha(amount: number): string {
   const safe = Number.isFinite(amount) ? amount : 0;
   const [intPart, decPart] = safe.toFixed(2).split(".");

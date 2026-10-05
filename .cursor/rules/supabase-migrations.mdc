@@ -1,0 +1,23 @@
+---
+description: Apply Supabase SQL migrations to the linked project after creating or changing them
+alwaysApply: true
+---
+
+# Supabase migrations
+
+When you add or modify SQL under `supabase/migrations/` (or the user asks to apply a migration), **apply it to the project database** — do not only tell the user to paste into the SQL Editor.
+
+Use the repo script (requires `secrets/supabase.env` with `SUPABASE_DB_URL` or `DATABASE_URL`):
+
+```powershell
+cd C:\Projects\Afterten
+node scripts/supabase/apply-sql-file.mjs supabase/migrations/<filename>.sql
+```
+
+Apply migrations in timestamp order if several are new and depend on each other. After applying, optionally verify with:
+
+```powershell
+node scripts/supabase/query.mjs "select ..."
+```
+
+If `secrets/supabase.env` is missing, say so and point to `secrets/supabase.env.example` — do not commit secrets.

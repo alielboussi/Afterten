@@ -24,12 +24,8 @@ export function getSupervisorSupabaseRedirectUri(): string {
   return `${base}?app_return=${encodeURIComponent(appReturn)}`;
 }
 
-/** Shown in dev UI / errors — URLs to add in Supabase Auth → Redirect URLs. */
+/** Shown in dev UI / errors — minimum Supabase Auth → Redirect URLs for supervisor sign-in. */
 export function getSupervisorSupabaseRedirectAllowlistHint(): string {
   const portal = getPortalBaseUrl();
-  return [
-    `${portal}/auth/supervisor-callback**`,
-    "afterten-supervisor://auth/callback",
-    "exp://**",
-  ].join("\n");
+  return `${portal}/auth/supervisor-callback**`;
 }

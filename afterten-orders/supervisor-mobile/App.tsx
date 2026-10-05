@@ -19,14 +19,21 @@ import {
 import {
   getSupervisorAppReturnUri,
   getSupervisorSupabaseRedirectAllowlistHint,
-  getSupervisorSupabaseRedirectUri,
 } from "./lib/supervisor-oauth-urls";
 import { signInWithGoogle } from "./lib/google-auth";
 import { subscribeToNewOutletOrders } from "./lib/order-realtime";
 import { OrdersScreen } from "./components/OrdersScreen";
+import { SupervisorOrderDetailScreen } from "./components/SupervisorOrderDetailScreen";
 import { ToastBanner } from "./components/ToastBanner";
 
-type Screen = "loading" | "login" | "pending" | "home" | "orders";
+type Screen =
+  | "loading"
+  | "login"
+  | "pending"
+  | "home"
+  | "orders"
+  | "orderDetail"
+  | "deliveryLoading";
 
 function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void }) {
   const insets = useSafeAreaInsets();
@@ -35,6 +42,8 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<SupervisorProfile | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [actionToast, setActionToast] = useState<string | null>(null);
 
   const bootstrap = useCallback(async () => {
     if (!supabase) {
@@ -104,6 +113,55 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
     );
   }
 
+  if (screen === "orderDetail" && supabase && profile?.approved && selectedOrderId) {
+    return (
+      <View
+        style={[
+          styles.home,
+          { paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: insets.bottom },
+        ]}
+      >
+        <SupervisorOrderDetailScreen
+          supabase={supabase}
+          orderId={selectedOrderId}
+          onBack={() => {
+            setSelectedOrderId(null);
+            setScreen("orders");
+          }}
+          onAccepted={(message) => {
+            setActionToast(message);
+            setSelectedOrderId(null);
+            setScreen("orders");
+          }}
+          contentPaddingBottom={contentPaddingBottom}
+        />
+        <ToastBanner message={actionToast} onDismiss={() => setActionToast(null)} />
+        <StatusBar style="auto" />
+      </View>
+    );
+  }
+
+  if (screen === "deliveryLoading" && supabase && profile?.approved) {
+    return (
+      <View
+        style={[
+          styles.home,
+          { paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: insets.bottom },
+        ]}
+      >
+        <OrdersScreen
+          supabase={supabase}
+          onBack={() => setScreen("home")}
+          contentPaddingBottom={contentPaddingBottom}
+          statusFilter="accepted"
+          title="Delivery Loading"
+          subtitle="Approved orders ready for loading (more steps coming soon)."
+        />
+        <StatusBar style="auto" />
+      </View>
+    );
+  }
+
   if (screen === "orders" && supabase && profile?.approved) {
     return (
       <View
@@ -116,6 +174,11 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
           supabase={supabase}
           onBack={() => setScreen("home")}
           contentPaddingBottom={contentPaddingBottom}
+          statusFilter="placed"
+          onOpenOrder={(orderId) => {
+            setSelectedOrderId(orderId);
+            setScreen("orderDetail");
+          }}
         />
         <StatusBar style="auto" />
       </View>
@@ -138,7 +201,7 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
         </View>
         <View style={styles.dashboardUpper}>
           <Text style={styles.welcomeLine}>
-            Welcome Supervisor <Text style={styles.welcomeName}>{alias}</Text>
+            Welcome <Text style={styles.welcomeName}>{alias}</Text>
           </Text>
           <Pressable
             style={[styles.showOrdersBtn, busy && styles.primaryBtnDisabled]}
@@ -146,6 +209,13 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
             accessibilityRole="button"
           >
             <Text style={styles.showOrdersBtnText}>Show orders</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.deliveryBtn, busy && styles.primaryBtnDisabled]}
+            onPress={() => setScreen("deliveryLoading")}
+            accessibilityRole="button"
+          >
+            <Text style={styles.deliveryBtnText}>Delivery Loading</Text>
           </Pressable>
         </View>
         <StatusBar style="auto" />
@@ -206,13 +276,10 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
 
       {__DEV__ ? (
         <Text selectable style={styles.devHint}>
-          Supabase → Auth → Redirect URLs (add all lines):{"\n"}
+          Supabase (supervisor only — one line):{"\n"}
           {getSupervisorSupabaseRedirectAllowlistHint()}
           {"\n\n"}
-          OAuth redirect_to:{"\n"}
-          {getSupervisorSupabaseRedirectUri()}
-          {"\n\n"}
-          App return link:{"\n"}
+          App return link (automatic; do not add to Supabase):{"\n"}
           {getSupervisorAppReturnUri()}
         </Text>
       ) : null}
@@ -312,6 +379,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   showOrdersBtnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
+  deliveryBtn: {
+    backgroundColor: "#fff",
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    minWidth: 220,
+    alignItems: "center",
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: "#1e3a8a",
+  },
+  deliveryBtnText: { color: "#1e3a8a", fontWeight: "700", fontSize: 16 },
   secondaryBtn: {
     backgroundColor: "#1e3a8a",
     borderRadius: 999,

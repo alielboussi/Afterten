@@ -38,6 +38,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ZoomableImage } from "./components/ZoomableImage";
 import { CatalogProductImage } from "./components/CatalogProductImage";
 import { OrderSummaryScreen } from "./components/OrderSummaryScreen";
+import { OutletAcceptedOrderDetailScreen } from "./components/OutletAcceptedOrderDetailScreen";
+import { ViewOrdersScreen } from "./components/ViewOrdersScreen";
 import { ToastBanner } from "./components/ToastBanner";
 import {
   cartHasItems,
@@ -74,6 +76,8 @@ function AppShell() {
   const [orderSaveError, setOrderSaveError] = useState<string | null>(null);
   const [orderSaving, setOrderSaving] = useState(false);
   const [saveToast, setSaveToast] = useState<string | null>(null);
+  const [viewOrdersActive, setViewOrdersActive] = useState(false);
+  const [viewOrderDetailId, setViewOrderDetailId] = useState<string | null>(null);
 
   async function onViewSummary() {
     if (!supabase || !cartHasItems(cartQty)) return;
@@ -244,7 +248,56 @@ function AppShell() {
     );
   }
 
-  if (screen === "home" && profile) {
+  if (screen === "home" && profile && supabase) {
+    if (viewOrderDetailId) {
+      return (
+        <View
+          style={[
+            styles.home,
+            {
+              paddingTop: screenLayout.paddingTop,
+              paddingBottom: screenLayout.paddingBottom,
+              paddingHorizontal: screenLayout.paddingHorizontal,
+            },
+          ]}
+        >
+          <OutletAcceptedOrderDetailScreen
+            supabase={supabase}
+            orderId={viewOrderDetailId}
+            onBack={() => setViewOrderDetailId(null)}
+            onToast={setSaveToast}
+            contentPaddingBottom={screenLayout.paddingBottom + 16}
+          />
+          <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
+          <StatusBar style="auto" />
+        </View>
+      );
+    }
+
+    if (viewOrdersActive) {
+      return (
+        <View
+          style={[
+            styles.home,
+            {
+              paddingTop: screenLayout.paddingTop,
+              paddingBottom: screenLayout.paddingBottom,
+              paddingHorizontal: screenLayout.paddingHorizontal,
+            },
+          ]}
+        >
+          <ViewOrdersScreen
+            supabase={supabase}
+            onBack={() => setViewOrdersActive(false)}
+            onOpenOrder={(id) => setViewOrderDetailId(id)}
+            onToast={setSaveToast}
+            contentPaddingBottom={screenLayout.paddingBottom + 16}
+          />
+          <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
+          <StatusBar style="auto" />
+        </View>
+      );
+    }
     const displayName = getOutletDisplayName(profile);
     const { gridItemWidth, gridGap, catalogImageHeight, compact } = screenLayout;
 
@@ -434,6 +487,13 @@ function AppShell() {
                   onPress={() => void onStartOrder()}
                 >
                   <Text style={styles.placeOrderBtnText}>Place an Order</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.viewOrdersBtn, compact && styles.viewOrdersBtnCompact]}
+                  onPress={() => setViewOrdersActive(true)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.viewOrdersBtnText}>View Orders</Text>
                 </Pressable>
               </View>
               <View style={styles.dashboardActionsSlot} />
@@ -872,6 +932,19 @@ const styles = StyleSheet.create({
     minWidth: 200,
   },
   placeOrderBtnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
+  viewOrdersBtn: {
+    marginTop: 12,
+    backgroundColor: "#fff",
+    borderRadius: 999,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    minWidth: 220,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#1e3a8a",
+  },
+  viewOrdersBtnCompact: { paddingVertical: 12, minWidth: 200 },
+  viewOrdersBtnText: { color: "#1e3a8a", fontWeight: "700", fontSize: 16 },
   backLink: { marginBottom: 6, paddingVertical: 2, alignSelf: "flex-start" },
   backLinkText: { color: "#c41e3a", fontWeight: "600", fontSize: 14 },
   productsLoading: { flex: 1, alignItems: "center", justifyContent: "center" },

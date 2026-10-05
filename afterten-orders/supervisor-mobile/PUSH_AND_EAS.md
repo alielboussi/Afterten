@@ -37,15 +37,15 @@ WhatsApp group alerts still come from the portal webhook. Optional background pu
 
 Supervisor OAuth uses a **portal bridge** so Supabase never sends users to the website home (“Access not allowed” for non–portal-admins).
 
-In **Supabase → Authentication → URL configuration → Redirect URLs**, add **all** of:
+In **Supabase → Authentication → URL configuration → Redirect URLs**, supervisor sign-in needs **one** entry (wildcard covers `?app_return=` for Expo Go):
 
 ```
 https://aftertentransfers.app/auth/supervisor-callback**
-afterten-supervisor://auth/callback
-exp://**
 ```
 
-(Use your portal host if `EXPO_PUBLIC_PORTAL_URL` differs. Supabase supports `**` wildcards.)
+Keep **`https://aftertentransfers.app/auth/callback`** for portal website Google login. Add **`http://localhost:…/auth/callback`** only if you run the portal locally.
+
+You do **not** need `exp://…`, `exp://**`, or `afterten-supervisor://…` in Supabase — those are handled by the bridge page, not by Supabase’s redirect allowlist.
 
 Flow: Google → Supabase → `…/auth/supervisor-callback?app_return=<exp or custom scheme>` → app deep link → session in the Supervisor app only.
 
