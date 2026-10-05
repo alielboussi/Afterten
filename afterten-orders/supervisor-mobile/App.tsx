@@ -16,7 +16,7 @@ import {
   supervisorDisplayName,
   type SupervisorProfile,
 } from "./lib/supabase";
-import { signInWithGoogle } from "./lib/google-auth";
+import { getSupervisorOAuthRedirectUri, signInWithGoogle } from "./lib/google-auth";
 import { subscribeToNewOutletOrders } from "./lib/order-realtime";
 import { OrdersScreen } from "./components/OrdersScreen";
 import { ToastBanner } from "./components/ToastBanner";
@@ -199,6 +199,13 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
         View outlet orders placed from the Afterten Orders app. Sign in with your Google account.
       </Text>
 
+      {__DEV__ ? (
+        <Text selectable style={styles.devHint}>
+          Supabase redirect URL (add under Auth → Redirect URLs):{"\n"}
+          {getSupervisorOAuthRedirectUri()}
+        </Text>
+      ) : null}
+
       <Pressable
         style={[styles.googleBtn, busy && styles.primaryBtnDisabled]}
         disabled={busy}
@@ -307,4 +314,12 @@ const styles = StyleSheet.create({
   primaryBtnDisabled: { opacity: 0.6 },
   error: { color: "#b91c1c", marginBottom: 12, lineHeight: 20, paddingHorizontal: 8 },
   loginError: { textAlign: "center", width: "100%", maxWidth: 360 },
+  devHint: {
+    fontSize: 11,
+    color: "#78716c",
+    lineHeight: 16,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+    textAlign: "center",
+  },
 });

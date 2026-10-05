@@ -35,15 +35,12 @@ WhatsApp group alerts still come from the portal webhook. Optional background pu
 
 ## Google sign-in
 
-Supabase → Authentication → URL configuration → **Redirect URLs** (add exactly):
+Supabase → Authentication → URL configuration → **Redirect URLs** — add **every** URL your app uses:
 
-\`\`\`
-https://aftertentransfers.app/auth/supervisor-callback
-\`\`\`
+1. **Production / dev build:** `afterten-supervisor://auth/callback`
+2. **Expo Go:** copy the exact `exp://…/--/auth/callback` string from the login screen (dev builds only show it). Add that URL to Supabase whenever your machine IP or Metro port changes.
 
-(Use your portal host if different; must match \`EXPO_PUBLIC_PORTAL_URL\` in \`.env\`.)
-
-That page completes OAuth in the in-app browser (no custom URL scheme required for Expo Go). Use **Continue with Google** in this app only—not the portal website.
+Do **not** use the portal HTTPS callback for mobile OAuth on Android; the in-app browser only completes when Supabase redirects to the app deep link above.
 
 ## Icon preview
 
