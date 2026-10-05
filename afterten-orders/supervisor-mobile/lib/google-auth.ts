@@ -1,18 +1,27 @@
 import * as WebBrowser from "expo-web-browser";
 import * as QueryParams from "expo-auth-session/build/QueryParams";
-import { makeRedirectUri } from "expo-auth-session";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const redirectTo = makeRedirectUri({
-  scheme: "afterten-supervisor",
-  path: "auth/callback",
-});
+const DEFAULT_PORTAL_URL = "https://aftertentransfers.app";
+
+/** HTTPS redirect registered in Supabase; forwards to the app custom scheme. */
+export function getSupervisorOAuthRedirectUri(): string {
+  const portal = (process.env.EXPO_PUBLIC_PORTAL_URL?.trim() || DEFAULT_PORTAL_URL).replace(/\/$/, "");
+  return `${portal}/auth/supervisor-callback`;
+}
 
 async function createSessionFromUrl(supabase: SupabaseClient, url: string) {
   const { params, errorCode } = QueryParams.getQueryParams(url);
   if (errorCode) throw new Error(errorCode);
+
+  if (params.code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(params.code);
+    if (error) throw error;
+    return;
+  }
+
   const access_token = params.access_token;
   const refresh_token = params.refresh_token;
   if (!access_token || !refresh_token) {
@@ -23,6 +32,8 @@ async function createSessionFromUrl(supabase: SupabaseClient, url: string) {
 }
 
 export async function signInWithGoogle(supabase: SupabaseClient): Promise<{ error: string | null }> {
+  const redirectTo = getSupervisorOAuthRedirectUri();
+
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -42,6 +53,9 @@ export async function signInWithGoogle(supabase: SupabaseClient): Promise<{ erro
     await createSessionFromUrl(supabase, result.url);
     return { error: null };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Google sign-in failed." };
+    const msg = e instanceof Error ? e.message : "Google sign-in failed.";
+    return {
+      error: `${msg} (Add ${redirectTo} to Supabase → Auth → Redirect URLs.)`,
+    };
   }
 }

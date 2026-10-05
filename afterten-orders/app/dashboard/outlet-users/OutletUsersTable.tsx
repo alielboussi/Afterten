@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { OutletStaffRow } from "@/lib/portal/outlet-data-cache";
+import { DeleteAuthUserButton } from "../DeleteAuthUserButton";
 import styles from "./outlet-users.module.css";
 
 function PasswordCell({ password }: { password: string | null }) {
@@ -48,6 +49,13 @@ function PasswordCell({ password }: { password: string | null }) {
 }
 
 export function OutletUsersTable({ staff }: { staff: OutletStaffRow[] }) {
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+
+  const visible = useMemo(
+    () => staff.filter((s) => !hiddenIds.has(s.userId)),
+    [staff, hiddenIds],
+  );
+
   return (
     <div className={styles.tableWrap}>
       <table className={styles.table}>
@@ -57,14 +65,14 @@ export function OutletUsersTable({ staff }: { staff: OutletStaffRow[] }) {
             <th>Email</th>
             <th>Password</th>
             <th>Status</th>
-            <th />
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {staff.map((s) => (
+          {visible.map((s) => (
             <tr key={s.userId}>
               <td>{s.alias ?? s.outletName ?? "—"}</td>
-              <td>{s.email}</td>
+              <td className={styles.emailCell}>{s.email}</td>
               <td>
                 <PasswordCell password={s.outletAppPassword} />
               </td>
@@ -74,16 +82,29 @@ export function OutletUsersTable({ staff }: { staff: OutletStaffRow[] }) {
                 </span>
               </td>
               <td>
-                <div className={styles.actionCell}>
-                  <Link
-                    href={`/dashboard/outlet-users/${s.userId}/products`}
-                    className={styles.productsBtn}
-                  >
-                    Products
-                  </Link>
-                  <Link href={`/dashboard/outlet-users/${s.userId}/edit`} className={styles.editBtn}>
-                    Edit
-                  </Link>
+                <div className={styles.actionCellStack}>
+                  <div className={styles.actionCell}>
+                    <Link
+                      href={`/dashboard/outlet-users/${s.userId}/products`}
+                      className={styles.productsBtn}
+                    >
+                      Products
+                    </Link>
+                    <Link href={`/dashboard/outlet-users/${s.userId}/edit`} className={styles.editBtn}>
+                      Edit
+                    </Link>
+                  </div>
+                  <DeleteAuthUserButton
+                    userId={s.userId}
+                    email={s.email}
+                    onDeleted={() =>
+                      setHiddenIds((prev) => {
+                        const next = new Set(prev);
+                        next.add(s.userId);
+                        return next;
+                      })
+                    }
+                  />
                 </div>
               </td>
             </tr>

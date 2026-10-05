@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { setPortalUserAlias } from "./actions";
 import styles from "./admins.module.css";
 
@@ -15,6 +15,12 @@ export function AliasField({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (message !== "Saved") return;
+    const timer = setTimeout(() => setMessage(null), 2000);
+    return () => clearTimeout(timer);
+  }, [message]);
+
   async function save() {
     if (value.trim() === initialAlias.trim()) return;
     setPending(true);
@@ -27,7 +33,6 @@ export function AliasField({
     }
     setValue(value.trim());
     setMessage("Saved");
-    setTimeout(() => setMessage(null), 2000);
   }
 
   return (

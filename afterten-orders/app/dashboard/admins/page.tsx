@@ -1,12 +1,6 @@
 import { getPortalAdminsListData } from "@/lib/portal/admins-list-cache";
-import { AdminAccessControl } from "./AdminAccessControl";
-import { AliasField } from "./AliasField";
+import { AdminUsersTable } from "./AdminUsersTable";
 import styles from "./admins.module.css";
-
-function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString();
-}
 
 export default async function AdminsPage() {
   let users: Awaited<ReturnType<typeof getPortalAdminsListData>>["users"] = [];
@@ -24,13 +18,12 @@ export default async function AdminsPage() {
   }
 
   return (
-    <div className="at-page-shell-wide">
+    <div className="at-page-shell-table">
       <h1 className="at-page-title">Portal Admins</h1>
       <p className="at-page-lead">
-        Users appear here after they sign in with Google at least once. Click{" "}
-        <strong>Make admin</strong> for dashboard-only access. Click a green{" "}
-        <strong>Portal admin</strong> pill to revoke. Set an <strong>alias</strong> per user (welcome
-        banner and portal display). Outlet app access is removed when granting admin.
+        People with dashboard access (Google or email sign-in on this website). Revoke or restore access
+        here. New sign-ins are assigned from the <strong>Dashboard</strong> home popup.{" "}
+        <strong>Delete user</strong> removes the Supabase Auth account entirely.
       </p>
 
       {loadError && (
@@ -44,41 +37,13 @@ export default async function AdminsPage() {
 
       <div className="at-page-card">
         {!loadError && users.length === 0 && (
-          <p className={styles.empty}>No signed-in users yet. Ask them to use Continue with Google once.</p>
+          <p className={styles.empty}>
+            No portal admins yet. When someone new signs in with Google, open <strong>Dashboard</strong>{" "}
+            and choose <strong>Portal admin</strong> in the popup.
+          </p>
         )}
         {!loadError && users.length > 0 && (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Alias</th>
-                <th>First signed in</th>
-                <th>Last sign-in</th>
-                <th>Access</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.email}</td>
-                  <td>
-                    <AliasField userId={u.id} initialAlias={aliases[u.id] ?? ""} />
-                  </td>
-                  <td>{formatDate(u.createdAt)}</td>
-                  <td>{formatDate(u.lastSignIn)}</td>
-                  <td>
-                    <AdminAccessControl
-                      userId={u.id}
-                      email={u.email}
-                      access={adminAccess[u.id] ?? "none"}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            </table>
-          </div>
+          <AdminUsersTable users={users} adminAccess={adminAccess} aliases={aliases} />
         )}
       </div>
     </div>

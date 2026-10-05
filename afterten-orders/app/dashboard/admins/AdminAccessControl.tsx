@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { grantPortalAdmin, revokePortalAdmin } from "./actions";
+import { AdminDeleteUserButton } from "./AdminDeleteUserButton";
 import styles from "./admins.module.css";
 
 export type AdminAccessState = "none" | "active" | "revoked";
@@ -10,10 +11,12 @@ export function AdminAccessControl({
   userId,
   email,
   access,
+  onUserDeleted,
 }: {
   userId: string;
   email: string;
   access: AdminAccessState;
+  onUserDeleted?: () => void;
 }) {
   const [state, setState] = useState(access);
   const [pending, setPending] = useState(false);
@@ -59,6 +62,7 @@ export function AdminAccessControl({
           Portal admin
         </button>
         {message && <span className={styles.inlineErr}>{message}</span>}
+        <AdminDeleteUserButton userId={userId} email={email} onDeleted={onUserDeleted} />
       </div>
     );
   }
@@ -71,6 +75,7 @@ export function AdminAccessControl({
           {pending ? "Saving…" : "Make admin"}
         </button>
         {message && <span className={styles.inlineErr}>{message}</span>}
+        <AdminDeleteUserButton userId={userId} email={email} onDeleted={onUserDeleted} />
       </div>
     );
   }
@@ -81,6 +86,7 @@ export function AdminAccessControl({
         {pending ? "Saving…" : "Make admin"}
       </button>
       {message && <span className={styles.inlineErr}>{message}</span>}
+      <AdminDeleteUserButton userId={userId} email={email} onDeleted={onUserDeleted} />
     </div>
   );
 }

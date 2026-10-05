@@ -14,9 +14,12 @@ export default async function OutletUsersPage() {
   }
 
   return (
-    <div className="at-page-shell-wide">
+    <div className="at-page-shell-table">
       <h1 className="at-page-title">Outlet Users</h1>
-      <p className="at-page-lead">Outlet app accounts — email + password sign-in on Expo only (no Google).</p>
+      <p className="at-page-lead">
+        Outlet Orders app accounts only — email + password on Expo (not Google). Create accounts here;
+        they do not appear on Portal Admins or Supervisors.
+      </p>
 
       {loadError && (
         <p className="at-page-msgErr">

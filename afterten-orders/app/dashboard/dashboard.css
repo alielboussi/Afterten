@@ -299,6 +299,17 @@
   margin: 0 auto;
 }
 
+/** Wide tables (admins, supervisors, outlet users) */
+.at-page-shell-table {
+  width: 100%;
+  max-width: min(100%, 76rem);
+  margin: 0 auto;
+}
+
+.at-page-shell-table .at-page-lead {
+  max-width: 44rem;
+}
+
 .at-page-title {
   margin: 0 0 10px;
   text-align: center;

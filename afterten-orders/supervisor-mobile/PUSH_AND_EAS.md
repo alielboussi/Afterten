@@ -35,9 +35,15 @@ WhatsApp group alerts still come from the portal webhook. Optional background pu
 
 ## Google sign-in
 
-Supabase → Authentication → URL configuration → redirect URL:
+Supabase → Authentication → URL configuration → **Redirect URLs** (add exactly):
 
-`afterten-supervisor://auth/callback`
+\`\`\`
+https://aftertentransfers.app/auth/supervisor-callback
+\`\`\`
+
+(Use your portal host if different; must match \`EXPO_PUBLIC_PORTAL_URL\` in \`.env\`.)
+
+That page forwards OAuth back to the app — **do not** sign in on the website; use **Continue with Google** in this app only.
 
 ## Icon preview
 

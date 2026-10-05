@@ -106,10 +106,12 @@
 
 .tableWrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
   width: 100%;
+  min-width: 920px;
   border-collapse: collapse;
   font-size: 0.925rem;
 }
@@ -213,6 +215,19 @@
   gap: 8px;
   justify-content: center;
   align-items: center;
+}
+
+.actionCellStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 10rem;
+}
+
+.emailCell {
+  text-align: left;
+  word-break: break-word;
 }
 
 .productsBtn {

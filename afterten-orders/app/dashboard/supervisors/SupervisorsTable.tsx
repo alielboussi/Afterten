@@ -83,7 +83,7 @@ export function SupervisorApprovalControl({
   }
 
   return (
-    <div className={styles.actionCell}>
+    <>
       {approved ? (
         <button
           type="button"
@@ -96,7 +96,7 @@ export function SupervisorApprovalControl({
       ) : (
         <button
           type="button"
-          className={styles.makeAdminBtn}
+          className={styles.makeAdminBtnWide}
           disabled={pending}
           onClick={() => void toggle()}
         >
@@ -108,6 +108,6 @@ export function SupervisorApprovalControl({
           {message}
         </span>
       )}
-    </div>
+    </>
   );
 }

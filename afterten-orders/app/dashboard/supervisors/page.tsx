@@ -1,13 +1,8 @@
 import { getSupervisorsListData } from "@/lib/portal/supervisors-list-cache";
-import { SupervisorAliasField, SupervisorApprovalControl } from "./SupervisorsTable";
+import { SupervisorUsersTable } from "./SupervisorUsersTable";
 import styles from "../admins/admins.module.css";
 
 export const dynamic = "force-dynamic";
-
-function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString();
-}
 
 export default async function SupervisorsPage() {
   let supervisors: Awaited<ReturnType<typeof getSupervisorsListData>> = [];
@@ -20,12 +15,12 @@ export default async function SupervisorsPage() {
   }
 
   return (
-    <div className="at-page-shell-wide">
+    <div className="at-page-shell-table">
       <h1 className="at-page-title">Supervisors</h1>
       <p className="at-page-lead">
-        Users appear here after they sign in with Google on the <strong>Supervisor</strong> Android app.
-        Set an <strong>alias</strong>, then click <strong>Approve supervisor</strong> before they can view
-        outlet orders.
+        Supervisor app accounts only (Google sign-in on the Supervisor mobile app). New supervisors are
+        added from the <strong>Dashboard</strong> popup or when they complete Google sign-in on the app.
+        Set an <strong>alias</strong>, then <strong>Approve supervisor</strong>.
       </p>
 
       {loadError && (
@@ -40,49 +35,15 @@ export default async function SupervisorsPage() {
       <div className="at-page-card">
         {!loadError && supervisors.length === 0 && (
           <p className={styles.empty}>
-            No supervisor sign-ins yet. Ask them to open the <strong>Supervisor</strong> app (not the
-            outlet Orders app) and tap <strong>Continue with Google</strong> once. The app must use the
-            same Supabase project as this portal (
-            <code>NEXT_PUBLIC_SUPABASE_URL</code> = app <code>EXPO_PUBLIC_SUPABASE_URL</code>). In Supabase
-            SQL Editor, check{" "}
-            <code>select email, approved from supervisor_profiles;</code>
+            No supervisor sign-ins yet. In the <strong>Supervisor</strong> app (not Orders), tap{" "}
+            <strong>Continue with Google</strong> and finish sign-in—you should see{" "}
+            <strong>Awaiting approval</strong>. If the app shows an error, open Supabase SQL Editor and
+            run{" "}
+            <code>select email, approved from supervisor_profiles;</code> to confirm a row exists (same
+            project as <code>NEXT_PUBLIC_SUPABASE_URL</code>).
           </p>
         )}
-        {!loadError && supervisors.length > 0 && (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Alias</th>
-                  <th>First sign-in</th>
-                  <th>Last sign-in</th>
-                  <th>Access</th>
-                </tr>
-              </thead>
-              <tbody>
-                {supervisors.map((s) => (
-                  <tr key={s.userId}>
-                    <td>{s.email}</td>
-                    <td>
-                      <SupervisorAliasField userId={s.userId} initialAlias={s.alias} />
-                    </td>
-                    <td>{formatDate(s.createdAt)}</td>
-                    <td>{formatDate(s.lastSignIn)}</td>
-                    <td>
-                      <SupervisorApprovalControl userId={s.userId} approved={s.approved} />
-                      {s.approved ? (
-                        <span className={styles.inlineOk}>Approved {formatDate(s.approvedAt)}</span>
-                      ) : (
-                        <span className={styles.empty}>Pending approval</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {!loadError && supervisors.length > 0 && <SupervisorUsersTable supervisors={supervisors} />}
       </div>
     </div>
   );

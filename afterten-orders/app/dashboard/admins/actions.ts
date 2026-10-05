@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { UNCATEGORIZED_USERS_TAG } from "@/lib/portal/uncategorized-users";
 
 export async function grantPortalAdmin(userId: string, email: string) {
   const gate = await assertCallerIsPortalAdmin();
@@ -30,10 +31,13 @@ export async function grantPortalAdmin(userId: string, email: string) {
 
   // Portal admins must not use the Expo outlet app.
   await admin.from("app_profiles").delete().eq("user_id", userId);
+  await admin.from("supervisor_profiles").delete().eq("user_id", userId);
 
   revalidatePath("/dashboard/admins");
-  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/supervisors");
   revalidateTag("portal-admins-list");
+  revalidateTag("supervisors-list");
+  revalidateTag(UNCATEGORIZED_USERS_TAG);
   return { ok: true as const };
 }
 
@@ -96,8 +100,65 @@ export async function setPortalUserAlias(userId: string, alias: string) {
   }
 
   revalidatePath("/dashboard/admins");
-  revalidatePath("/dashboard");
   revalidateTag("portal-admins-list");
   revalidateTag(`welcome-${userId}`);
+  return { ok: true as const };
+}
+
+/** Permanently removes a Supabase Auth user and related portal rows. */
+export async function deletePortalAuthUser(userId: string) {
+  const gate = await assertCallerIsPortalAdmin();
+  if (!gate.ok) return gate;
+
+  if (!userId) {
+    return { ok: false as const, error: "Invalid user." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.id === userId) {
+    return { ok: false as const, error: "You cannot delete your own account." };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: targetAdmin } = await admin
+    .from("portal_admins")
+    .select("active")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (targetAdmin?.active) {
+    const { count, error: countErr } = await admin
+      .from("portal_admins")
+      .select("*", { count: "exact", head: true })
+      .eq("active", true);
+    if (countErr) return { ok: false as const, error: countErr.message };
+    if ((count ?? 0) <= 1) {
+      return {
+        ok: false as const,
+        error: "Cannot delete the only active portal admin. Grant another admin first.",
+      };
+    }
+  }
+
+  await admin.from("portal_admins").delete().eq("user_id", userId);
+  await admin.from("portal_user_profiles").delete().eq("user_id", userId);
+  await admin.from("app_profiles").delete().eq("user_id", userId);
+  await admin.from("supervisor_profiles").delete().eq("user_id", userId);
+  await admin.from("supervisor_push_tokens").delete().eq("user_id", userId);
+
+  const { error: deleteErr } = await admin.auth.admin.deleteUser(userId);
+  if (deleteErr) {
+    return { ok: false as const, error: deleteErr.message };
+  }
+
+  revalidatePath("/dashboard/admins");
+  revalidatePath("/dashboard/supervisors");
+  revalidatePath("/dashboard/outlet-users");
+  revalidateTag("portal-admins-list");
+  revalidateTag(UNCATEGORIZED_USERS_TAG);
   return { ok: true as const };
 }

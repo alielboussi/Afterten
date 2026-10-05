@@ -1,9 +1,13 @@
 .tableWrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -4px;
+  padding: 0 4px 4px;
 }
 
 .table {
   width: 100%;
+  min-width: 880px;
   border-collapse: collapse;
   font-size: 0.925rem;
 }
@@ -89,11 +93,88 @@
   cursor: not-allowed;
 }
 
+.makeAdminBtnWide {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--afterten-accent-gradient);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: normal;
+  line-height: 1.25;
+  font-family: inherit;
+  font-size: 0.85rem;
+  min-width: 11rem;
+  text-align: center;
+}
+
+.makeAdminBtnWide:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.makeAdminBtnWide:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.emailCell {
+  text-align: left;
+  word-break: break-word;
+  max-width: 16rem;
+}
+
+.dateCell {
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.pendingHint {
+  font-size: 0.8rem;
+  color: var(--afterten-muted);
+  text-align: center;
+}
+
 .actionCell {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 11.5rem;
+  max-width: 14rem;
+}
+
+.deleteInAction {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  width: 100%;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--afterten-border);
+}
+
+.deleteUserBtn {
+  padding: 7px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--afterten-red);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.deleteUserBtn:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.deleteUserBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .aliasCell {
