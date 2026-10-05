@@ -47,7 +47,13 @@ export async function signInWithGoogle(supabase: SupabaseClient): Promise<{ erro
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     if (result.type !== "success") {
-      return { error: result.type === "cancel" ? "Sign-in cancelled." : "Google sign-in failed." };
+      if (result.type === "cancel" || result.type === "dismiss") {
+        return {
+          error:
+            "Sign-in was interrupted. Wait until the browser closes on its own after “Finishing sign-in…”—don’t tap ×.",
+        };
+      }
+      return { error: "Google sign-in failed." };
     }
 
     await createSessionFromUrl(supabase, result.url);

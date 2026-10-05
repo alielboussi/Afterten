@@ -20,7 +20,7 @@ export async function GET() {
 </head>
 <body>
   <p><strong>Finishing sign-in…</strong></p>
-  <p id="fallback" hidden>Tap the <strong>close (×)</strong> button above to return to the Supervisor app.</p>
+  <p id="fallback" hidden>This window should close automatically. If it stays open for more than a few seconds, tap × once to return to the app.</p>
   <script>
     (function () {
       var hash = location.hash;
