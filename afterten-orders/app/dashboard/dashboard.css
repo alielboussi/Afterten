@@ -912,6 +912,21 @@
   text-align: left;
 }
 
+.at-orders-table .at-table td:nth-child(2),
+.at-orders-table .at-table th:nth-child(2) {
+  text-align: left;
+  padding-right: 1.25rem;
+  max-width: 18rem;
+  word-break: break-word;
+}
+
+.at-orders-table .at-table td:nth-child(3),
+.at-orders-table .at-table th:nth-child(3) {
+  min-width: 3.25rem;
+  padding-left: 1rem;
+  white-space: nowrap;
+}
+
 .at-orderMetaGrid {
   display: grid;
   grid-template-columns: minmax(8rem, 11rem) 1fr;

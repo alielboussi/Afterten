@@ -125,9 +125,14 @@ export function OutletAcceptedOrderDetailScreen({
           </View>
           {lines.map((row, idx) => (
             <View key={`${row.name}-${idx}`} style={styles.tableBodyRow}>
-              <Text style={[styles.colProduct, row.is_auto ? styles.cellAuto : styles.cellMain]}>
-                {row.is_auto ? `- ${row.name}` : row.name}
-              </Text>
+              <View style={styles.colProduct}>
+                <Text
+                  style={row.is_auto ? styles.cellAuto : styles.cellMain}
+                  numberOfLines={3}
+                >
+                  {row.is_auto ? `- ${row.name}` : row.name}
+                </Text>
+              </View>
               <Text style={[styles.cellBody, styles.colQty]}>{row.qty}</Text>
               <Text style={[styles.cellBody, styles.colUom]}>{row.uom}</Text>
               <Text style={[styles.cellBody, styles.colAmount]}>
@@ -178,10 +183,10 @@ const styles = StyleSheet.create({
   cellBody: { fontSize: 12, color: "#292524" },
   cellMain: { fontSize: 13, fontWeight: "600", color: "#292524" },
   cellAuto: { fontSize: 12, color: "#57534e" },
-  colProduct: { flex: 2.2 },
-  colQty: { flex: 0.7, textAlign: "center" },
-  colUom: { flex: 0.9, paddingLeft: 8, textAlign: "center" },
-  colAmount: { flex: 1, textAlign: "right" },
+  colProduct: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 12 },
+  colQty: { width: 52, flexShrink: 0, textAlign: "center", paddingHorizontal: 4 },
+  colUom: { width: 58, flexShrink: 0, paddingLeft: 8, textAlign: "center" },
+  colAmount: { width: 76, flexShrink: 0, textAlign: "right" },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",

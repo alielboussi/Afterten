@@ -270,6 +270,7 @@ export function SupervisorOrderDetailScreen({
                         style={
                           row.kind === "main" ? styles.cellProductNameMain : styles.cellProductNameAuto
                         }
+                        numberOfLines={3}
                       >
                         {row.kind === "auto" ? `- ${row.name}` : row.name}
                       </Text>
@@ -401,10 +402,10 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     paddingLeft: 4,
   },
-  colProduct: { flex: 2.2 },
-  colQty: { flex: 0.7, textAlign: "center" },
-  colUom: { flex: 0.9, paddingLeft: 8, textAlign: "center" },
-  colAmount: { flex: 1, textAlign: "right" },
+  colProduct: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 12 },
+  colQty: { width: 52, flexShrink: 0, textAlign: "center", paddingHorizontal: 4 },
+  colUom: { width: 58, flexShrink: 0, paddingLeft: 8, textAlign: "center" },
+  colAmount: { width: 76, flexShrink: 0, textAlign: "right" },
   qtyInput: {
     borderWidth: 1,
     borderColor: "#d6d3d1",

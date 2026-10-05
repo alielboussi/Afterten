@@ -38,7 +38,7 @@ function renderRow(row: SummaryDisplayRow) {
   return (
     <View key={row.rowKey} style={styles.tableBodyRow}>
       <View style={styles.colProduct}>
-        <Text style={isHeadline ? styles.cellProductNameMain : styles.cellProductNameAuto}>
+        <Text style={isHeadline ? styles.cellProductNameMain : styles.cellProductNameAuto} numberOfLines={3}>
           {productLabel}
         </Text>
         {row.unitsDetail ? <Text style={styles.cellUnitsMeta}>{row.unitsDetail}</Text> : null}
@@ -209,10 +209,10 @@ const styles = StyleSheet.create({
     color: "#292524",
     fontWeight: "500",
   },
-  colProduct: { flex: 1.6, paddingRight: 6 },
-  colQty: { width: 40, textAlign: "center" },
-  colUom: { width: 52, paddingLeft: 8, textAlign: "center" },
-  colAmount: { width: 96, textAlign: "right" },
+  colProduct: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 12 },
+  colQty: { width: 52, flexShrink: 0, textAlign: "center", paddingHorizontal: 4 },
+  colUom: { width: 58, flexShrink: 0, paddingLeft: 8, textAlign: "center" },
+  colAmount: { width: 76, flexShrink: 0, textAlign: "right" },
   cellProductNameMain: {
     fontSize: 13,
     fontWeight: "700",

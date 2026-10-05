@@ -145,6 +145,7 @@ export function DeliveryLoadingChecklistScreen({
                       style={
                         row.kind === "main" ? styles.cellProductNameMain : styles.cellProductNameAuto
                       }
+                      numberOfLines={3}
                     >
                       {row.kind === "auto" ? `- ${row.name}` : row.name}
                     </Text>
@@ -198,9 +199,9 @@ const styles = StyleSheet.create({
   cellHeader: { fontSize: 11, fontWeight: "700", color: "#57534e" },
   cellBody: { fontSize: 12, color: "#292524" },
   colCheck: { width: 32, alignItems: "center" },
-  colProduct: { flex: 2.2 },
-  colQty: { flex: 0.6, textAlign: "center" },
-  colUom: { flex: 0.9, paddingLeft: 8, textAlign: "center" },
+  colProduct: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 12 },
+  colQty: { width: 52, flexShrink: 0, textAlign: "center", paddingHorizontal: 4 },
+  colUom: { width: 58, flexShrink: 0, paddingLeft: 8, textAlign: "center" },
   cellProductNameMain: {
     fontSize: 13,
     fontWeight: "700",

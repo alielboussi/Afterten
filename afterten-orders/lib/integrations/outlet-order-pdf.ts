@@ -37,6 +37,11 @@ const PAD = 28;
 const CONTENT_LEFT = PAD + BORDER_PT;
 const CONTENT_RIGHT = PAGE_W - PAD - BORDER_PT;
 const CONTENT_WIDTH = CONTENT_RIGHT - CONTENT_LEFT;
+/** Product / qty column split — keep a gap so long names never overlap qty. */
+const PDF_PRODUCT_COL_W = CONTENT_WIDTH * 0.46;
+const PDF_COL_QTY_X = CONTENT_LEFT + CONTENT_WIDTH * 0.5;
+const PDF_COL_UOM_X = CONTENT_LEFT + CONTENT_WIDTH * 0.62;
+const PDF_COL_AMT_X = CONTENT_LEFT + CONTENT_WIDTH * 0.78;
 const FOOTER_Y = PAGE_H - PAD - 14;
 const RED = "#DC2626";
 
@@ -112,15 +117,12 @@ function drawPageNumbers(doc: InstanceType<typeof PDFDocument>) {
 
 function drawTableHeader(doc: InstanceType<typeof PDFDocument>, y: number): number {
   const colProduct = CONTENT_LEFT;
-  const colQty = CONTENT_LEFT + CONTENT_WIDTH * 0.52;
-  const colUom = CONTENT_LEFT + CONTENT_WIDTH * 0.64;
-  const colAmt = CONTENT_LEFT + CONTENT_WIDTH * 0.78;
 
   doc.font("Helvetica-Bold").fontSize(9).fillColor("#57534e");
-  doc.text("PRODUCT", colProduct, y, { width: CONTENT_WIDTH * 0.5 });
-  doc.text("QTY", colQty, y, { width: CONTENT_WIDTH * 0.1, align: "center" });
-  doc.text("UOM", colUom, y, { width: CONTENT_WIDTH * 0.12, align: "center" });
-  doc.text("AMOUNT", colAmt, y, { width: CONTENT_WIDTH * 0.2, align: "right" });
+  doc.text("PRODUCT", colProduct, y, { width: PDF_PRODUCT_COL_W });
+  doc.text("QTY", PDF_COL_QTY_X, y, { width: CONTENT_WIDTH * 0.1, align: "center" });
+  doc.text("UOM", PDF_COL_UOM_X, y, { width: CONTENT_WIDTH * 0.12, align: "center" });
+  doc.text("AMOUNT", PDF_COL_AMT_X, y, { width: CONTENT_WIDTH * 0.2, align: "right" });
   return y + 16;
 }
 
@@ -175,23 +177,20 @@ export async function renderOutletOrderPdf(input: OrderPdfInput): Promise<Buffer
     for (const line of input.lines) {
       ensureSpace(rowHeight + 4, true);
       const colProduct = CONTENT_LEFT + (line.isSub ? 8 : 0);
-      const colQty = CONTENT_LEFT + CONTENT_WIDTH * 0.52;
-      const colUom = CONTENT_LEFT + CONTENT_WIDTH * 0.64;
-      const colAmt = CONTENT_LEFT + CONTENT_WIDTH * 0.78;
 
       doc.font(line.isSub ? "Helvetica" : "Helvetica-Bold");
-      doc.text(line.name, colProduct, y, { width: CONTENT_WIDTH * 0.5 - 8 });
-      doc.text(line.qty, colQty, y, { width: CONTENT_WIDTH * 0.1, align: "center" });
-      doc.text(line.uom, colUom, y, { width: CONTENT_WIDTH * 0.12, align: "center" });
-      doc.text(line.amount, colAmt, y, { width: CONTENT_WIDTH * 0.2, align: "right" });
+      doc.text(line.name, colProduct, y, { width: PDF_PRODUCT_COL_W - (line.isSub ? 8 : 0) });
+      doc.text(line.qty, PDF_COL_QTY_X, y, { width: CONTENT_WIDTH * 0.1, align: "center" });
+      doc.text(line.uom, PDF_COL_UOM_X, y, { width: CONTENT_WIDTH * 0.12, align: "center" });
+      doc.text(line.amount, PDF_COL_AMT_X, y, { width: CONTENT_WIDTH * 0.2, align: "right" });
       y += rowHeight;
     }
 
     ensureSpace(22, false);
     y += 4;
     doc.font("Helvetica-Bold").fontSize(10).fillColor("#292524");
-    doc.text("Total", CONTENT_LEFT + CONTENT_WIDTH * 0.52, y);
-    doc.fillColor(RED).text(input.grandTotalFormatted, CONTENT_LEFT + CONTENT_WIDTH * 0.78, y, {
+    doc.text("Total", PDF_COL_QTY_X, y);
+    doc.fillColor(RED).text(input.grandTotalFormatted, PDF_COL_AMT_X, y, {
       width: CONTENT_WIDTH * 0.2,
       align: "right",
     });
