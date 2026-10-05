@@ -2,6 +2,8 @@ import { getSupervisorsListData } from "@/lib/portal/supervisors-list-cache";
 import { SupervisorAliasField, SupervisorApprovalControl } from "./SupervisorsTable";
 import styles from "../admins/admins.module.css";
 
+export const dynamic = "force-dynamic";
+
 function formatDate(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString();
@@ -38,7 +40,12 @@ export default async function SupervisorsPage() {
       <div className="at-page-card">
         {!loadError && supervisors.length === 0 && (
           <p className={styles.empty}>
-            No supervisor sign-ins yet. Ask them to open the supervisor app and use Continue with Google once.
+            No supervisor sign-ins yet. Ask them to open the <strong>Supervisor</strong> app (not the
+            outlet Orders app) and tap <strong>Continue with Google</strong> once. The app must use the
+            same Supabase project as this portal (
+            <code>NEXT_PUBLIC_SUPABASE_URL</code> = app <code>EXPO_PUBLIC_SUPABASE_URL</code>). In Supabase
+            SQL Editor, check{" "}
+            <code>select email, approved from supervisor_profiles;</code>
           </p>
         )}
         {!loadError && supervisors.length > 0 && (

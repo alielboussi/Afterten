@@ -1,4 +1,3 @@
-import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 
 export type ListedSupervisor = {
@@ -42,9 +41,6 @@ async function fetchSupervisorsListData(): Promise<ListedSupervisor[]> {
   }));
 }
 
-export function getSupervisorsListData() {
-  return unstable_cache(fetchSupervisorsListData, ["supervisors-list-v1"], {
-    revalidate: 45,
-    tags: ["supervisors-list"],
-  })();
+export async function getSupervisorsListData(): Promise<ListedSupervisor[]> {
+  return fetchSupervisorsListData();
 }

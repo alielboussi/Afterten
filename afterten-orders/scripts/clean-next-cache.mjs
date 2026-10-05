@@ -13,4 +13,9 @@ for (const dir of [".next", ".turbo"]) {
 }
 
 console.log("Removed .next and .turbo cache.");
-console.log("If you saw 'Cannot find module ./XXX.js', restart with: npm run dev  (or npm run build && npm start).");
+console.log(
+  "Restart dev: npm run dev  (or npm run dev:clean). Hard-refresh the browser (Ctrl+Shift+R).",
+);
+console.log(
+  "If you saw '__webpack_modules__[moduleId] is not a function' or 'Cannot find module ./XXX.js', that usually means stale chunks — clean + restart fixes it.",
+);

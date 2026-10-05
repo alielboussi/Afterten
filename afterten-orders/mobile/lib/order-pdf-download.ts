@@ -1,5 +1,3 @@
-import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
 import * as Sharing from "expo-sharing";
 import { File, Paths } from "expo-file-system";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -13,19 +11,6 @@ function portalBaseUrl(): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function notify(title: string, body: string) {
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("orders", {
-      name: "Orders & PDFs",
-      importance: Notifications.AndroidImportance.DEFAULT,
-    });
-  }
-  await Notifications.scheduleNotificationAsync({
-    content: { title, body, sound: true },
-    trigger: null,
-  });
 }
 
 async function ensurePdfInStorageBucket(
@@ -85,8 +70,6 @@ export async function waitForOrderPdfAndOpen(
   supabase: SupabaseClient,
   orderId: string,
 ): Promise<{ ok: true; fileName: string } | { ok: false; error: string }> {
-  await notify("Order PDF", "Building and saving your order PDF…");
-
   const ensured = await ensurePdfInStorageBucket(supabase, orderId);
   if (!ensured.ok) {
     return ensured;
@@ -102,8 +85,6 @@ export async function waitForOrderPdfAndOpen(
     return { ok: false, error: signErr?.message ?? "Could not access PDF." };
   }
 
-  await notify("Order PDF", `Downloading ${fileName}…`);
-
   try {
     const dest = new File(Paths.cache, fileName);
     await File.downloadFileAsync(signed.signedUrl, dest);
@@ -117,7 +98,6 @@ export async function waitForOrderPdfAndOpen(
       });
     }
 
-    await notify("PDF ready", `${fileName} saved — tap to view from share sheet.`);
     return { ok: true, fileName };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Download failed." };

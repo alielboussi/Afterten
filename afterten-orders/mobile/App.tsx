@@ -122,11 +122,13 @@ function AppShell() {
     setOrderSummaryPreview(null);
     setOrderFlowActive(false);
     setOrderSaveError(null);
-    setSaveToast(`Order ${result.orderNumber} saved`);
+    setSaveToast(`Order ${result.orderNumber} saved — opening PDF…`);
     void loadProducts();
     void waitForOrderPdfAndOpen(supabase, result.orderId).then((pdf) => {
       if (!pdf.ok) {
         setSaveToast(`Order ${result.orderNumber} saved (PDF: ${pdf.error})`);
+      } else {
+        setSaveToast(`Order ${result.orderNumber} saved — PDF ready`);
       }
     });
   }

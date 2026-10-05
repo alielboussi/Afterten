@@ -4,7 +4,12 @@ import path from "node:path";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(process.cwd()),
-  serverExternalPackages: ["@supabase/supabase-js", "@supabase/ssr"],
+  serverExternalPackages: [
+    "@supabase/supabase-js",
+    "@supabase/ssr",
+    "pdfkit",
+    "sharp",
+  ],
   experimental: {
     serverActions: {
       // Product image uploads (Supabase bucket max 5 MB); default Next limit is 1 MB.

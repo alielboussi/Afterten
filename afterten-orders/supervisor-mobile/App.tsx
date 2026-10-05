@@ -17,16 +17,13 @@ import {
   type SupervisorProfile,
 } from "./lib/supabase";
 import { signInWithGoogle } from "./lib/google-auth";
-import {
-  ensureSupervisorNotifications,
-  registerSupervisorExpoPushToken,
-  subscribeToPlacedOrders,
-} from "./lib/order-notifications";
+import { subscribeToNewOutletOrders } from "./lib/order-realtime";
 import { OrdersScreen } from "./components/OrdersScreen";
+import { ToastBanner } from "./components/ToastBanner";
 
 type Screen = "loading" | "login" | "pending" | "home" | "orders";
 
-function AppShell() {
+function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void }) {
   const insets = useSafeAreaInsets();
   const supabase = useMemo(() => (supabaseConfigured() ? createSupabaseClient() : null), []);
   const [screen, setScreen] = useState<Screen>("loading");
@@ -61,10 +58,8 @@ function AppShell() {
 
   useEffect(() => {
     if (!supabase || !profile?.approved) return;
-    void registerSupervisorExpoPushToken(supabase);
-    const unsubscribe = subscribeToPlacedOrders(supabase);
-    return unsubscribe;
-  }, [supabase, profile?.approved]);
+    return subscribeToNewOutletOrders(supabase, onOrderAlert);
+  }, [supabase, profile?.approved, onOrderAlert]);
 
   async function onGoogleSignIn() {
     if (!supabase) return;
@@ -222,9 +217,12 @@ function AppShell() {
 }
 
 export default function App() {
+  const [orderAlert, setOrderAlert] = useState<string | null>(null);
+
   return (
     <SafeAreaProvider>
-      <AppShell />
+      <AppShell onOrderAlert={setOrderAlert} />
+      <ToastBanner message={orderAlert} onDismiss={() => setOrderAlert(null)} />
     </SafeAreaProvider>
   );
 }

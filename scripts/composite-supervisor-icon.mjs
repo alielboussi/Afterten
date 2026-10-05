@@ -17,9 +17,15 @@ const previewOut = path.join(outDir, "icon-preview.png");
 const SIZE = 1024;
 /** Inset so foreground is not clipped by Android adaptive icon mask. */
 const CANVAS_INSET = 88;
-const CROWN_MAX_WIDTH = 248;
+const CROWN_MAX_WIDTH = 188;
 const CROWN_LEFT_OFFSET = -22;
-const MIN_GAP_ABOVE_LOGO = 10;
+const MIN_GAP_ABOVE_LOGO = 12;
+/** Top red frame band height on source icon (1024px), scaled with inner canvas. */
+const RED_FRAME_BAND_RATIO = 36 / 1024;
+/** Clear space between crown and inner edge of top red frame band. */
+const GAP_BELOW_RED_FRAME = 20;
+/** First row of clock ornament on base icon (1024px). */
+const CLOCK_TOP_RATIO = 218 / 1024;
 
 async function buildIcon() {
   const inner = SIZE - CANVAS_INSET * 2;
@@ -49,9 +55,14 @@ async function buildIcon() {
   const cw = crownMeta.width ?? CROWN_MAX_WIDTH;
   const ch = crownMeta.height ?? CROWN_MAX_WIDTH;
 
-  const logoArtTopOnBase = CANVAS_INSET + Math.round((198 / 1024) * inner);
-  const maxTop = logoArtTopOnBase - MIN_GAP_ABOVE_LOGO - ch;
-  const top = Math.max(CANVAS_INSET + 8, Math.min(CANVAS_INSET + 28, maxTop));
+  const clockTopOnCanvas = CANVAS_INSET + Math.round(CLOCK_TOP_RATIO * inner);
+  const redFrameBand = Math.round(RED_FRAME_BAND_RATIO * inner);
+  const minTop = CANVAS_INSET + redFrameBand + GAP_BELOW_RED_FRAME;
+  const maxTop = clockTopOnCanvas - MIN_GAP_ABOVE_LOGO - ch;
+  if (minTop > maxTop) {
+    throw new Error("Crown overlaps clock; reduce CROWN_MAX_WIDTH or inset.");
+  }
+  const top = minTop;
   const left = Math.round((SIZE - cw) / 2) + CROWN_LEFT_OFFSET;
 
   const composed = await sharp(baseLayer)

@@ -8,9 +8,7 @@ Copy from the outlet app:
 cp ../mobile/.env .env
 ```
 
-Add for production push (after `eas init`):
-
-- `EXPO_PUBLIC_EAS_PROJECT_ID` — from [expo.dev](https://expo.dev) project settings (also set in `app.config` via `extra.eas.projectId`).
+Only Supabase URL + anon key are required in `.env`.
 
 Portal / Vercel (order webhook + WhatsApp):
 
@@ -29,6 +27,12 @@ set
 where id = 'default';
 ```
 
+## New order alerts (in-app)
+
+While a supervisor is signed in and approved, the app listens to **Supabase Realtime** on `outlet_orders` inserts and shows an in-app **toast** (`lib/order-realtime.ts`, `components/ToastBanner.tsx`). No Expo push, EAS project, or device notification permission is required.
+
+WhatsApp group alerts still come from the portal webhook. Optional background push via EAS/FCM can be added later without changing this Realtime path.
+
 ## Google sign-in
 
 Supabase → Authentication → URL configuration → redirect URL:
@@ -43,15 +47,15 @@ node ../../scripts/composite-supervisor-icon.mjs
 node ../../scripts/composite-supervisor-icon.mjs --apply
 ```
 
-## FCM / push (EAS)
+## Optional: EAS builds (not required for Expo Go dev)
+
+Use EAS when you need a standalone APK/AAB (not Expo Go):
 
 1. `npm install -g eas-cli` and `eas login`
-2. In this folder: `eas init` (links Expo project; add `projectId` to `app.json` under `expo.extra.eas`)
-3. `eas credentials` → Android → set up **FCM V1** (upload Firebase `google-services.json` or let EAS create Firebase project)
-4. Build: `eas build -p android --profile preview` (APK for testing) or `production` (Play Store AAB)
-5. Install the build on a device — **Expo Go does not deliver production FCM pushes**; use a dev or preview build with `expo-notifications`.
+2. In this folder: `eas init` (links Expo project for builds only)
+3. `eas build -p android --profile preview`
 
-Push delivery uses **Expo Push Service** (`exp.host`) → FCM on Android. Expo’s push API is **free**; FCM is **free** at typical volumes. **EAS Build** billing follows your Expo plan (free tier includes limited builds/month).
+See `eas.json` for build profiles.
 
 ## Run locally
 

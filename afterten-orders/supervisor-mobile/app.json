@@ -14,21 +14,6 @@
       },
       "package": "com.afterten.supervisor"
     },
-    "extra": {
-      "eas": {
-        "projectId": "REPLACE_AFTER_eas_init"
-      }
-    },
-    "plugins": [
-      "expo-font",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#c41e3a"
-        }
-      ],
-      "expo-web-browser"
-    ]
+    "plugins": ["expo-font", "expo-web-browser"]
   }
 }
