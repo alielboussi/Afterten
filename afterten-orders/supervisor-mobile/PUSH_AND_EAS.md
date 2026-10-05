@@ -32,7 +32,8 @@ If **WhatsApp does not arrive** when a supervisor accepts an order:
 
 1. On **Vercel**, confirm `ORDER_NOTIFY_WEBHOOK_SECRET`, `WASENDER_API_KEY`, and `WHATSAPP_ORDERS_GROUP_JID` are set for Production (then redeploy).
 2. In Supabase, `order_notify_config.webhook_secret` must **exactly match** `ORDER_NOTIFY_WEBHOOK_SECRET`. A mismatch returns HTTP 401 from the webhook; accept still succeeds because `pg_net` is fire-and-forget.
-3. After deploy, POST `https://YOUR_PORTAL_HOST/api/webhooks/supervisor-order-accepted` with header `x-order-notify-secret` and body `{"order_id":"<uuid>"}` — the JSON includes `whatsapp` and `preview`.
+3. **PDF errors no longer block WhatsApp** on `/api/webhooks/supervisor-order-accepted` — the group alert sends even if approved PDF generation fails (fix Helvetica/fonts via `next.config.ts` output tracing).
+4. After deploy, POST `https://YOUR_PORTAL_HOST/api/webhooks/supervisor-order-accepted` with header `x-order-notify-secret` and body `{"order_id":"<uuid>"}` — the JSON includes `whatsapp` and `preview`.
 
 **WhatsApp timing:** (1) **Order accepted** → `/api/webhooks/supervisor-order-accepted` (not on outlet placement). (2) **Dispatched** → `/api/webhooks/driver-order-loaded` when the supervisor taps **Dispatch** after driver + signature.
 

@@ -38,11 +38,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await generateAndStoreApprovedOrderPdf(admin, orderId);
-    if (!result.ok) {
-      console.error("[supervisor-order-accepted]", result.error);
-      return NextResponse.json({ error: result.error }, { status: 500 });
-    }
+    const pdfResult = await generateAndStoreApprovedOrderPdf(admin, orderId);
 
     const wa = await sendSupervisorAcceptedOrderWhatsApp(admin, orderId);
     const whatsapp = wa.ok
@@ -51,14 +47,41 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      pdf_path: result.pdfPath,
-      file_name: result.fileName,
+      pdf: pdfResult.ok
+        ? { path: pdfResult.pdfPath, fileName: pdfResult.fileName }
+        : { error: pdfResult.error },
       whatsapp,
       preview: wa.ok ? wa.preview : undefined,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "PDF build failed.";
+    const msg = e instanceof Error ? e.message : "Webhook handler failed.";
     console.error("[supervisor-order-accepted]", e);
-    return NextResponse.json({ error: msg }, { status: 500 });
+
+    let whatsapp: { ok: boolean; skipped?: boolean; error?: string; preview?: string } = {
+      ok: false,
+      error: "Not attempted due to handler error.",
+    };
+    try {
+      const wa = await sendSupervisorAcceptedOrderWhatsApp(admin, orderId);
+      whatsapp = wa.ok
+        ? { ok: true, preview: wa.preview }
+        : { ok: false, skipped: wa.skipped, error: wa.error };
+    } catch (waErr) {
+      console.error("[supervisor-order-accepted] whatsapp fallback failed", waErr);
+      whatsapp = {
+        ok: false,
+        error: waErr instanceof Error ? waErr.message : "WhatsApp send failed.",
+      };
+    }
+
+    return NextResponse.json(
+      {
+        ok: whatsapp.ok,
+        error: msg,
+        whatsapp,
+        preview: whatsapp.preview,
+      },
+      { status: whatsapp.ok ? 200 : 500 },
+    );
   }
 }
