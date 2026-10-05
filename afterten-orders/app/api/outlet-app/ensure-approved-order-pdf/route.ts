@@ -90,15 +90,30 @@ export async function POST(req: Request) {
     }
   }
 
-  const admin = createAdminClient();
-  const result = await generateAndStoreApprovedOrderPdf(admin, orderId);
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Server misconfigured.";
+    console.error("[ensure-approved-order-pdf]", msg);
+    return NextResponse.json({ error: msg }, { status: 503 });
   }
 
-  return NextResponse.json({
-    ready: true,
-    pdf_path: result.pdfPath,
-    file_name: result.fileName,
-  });
+  try {
+    const result = await generateAndStoreApprovedOrderPdf(admin, orderId);
+    if (!result.ok) {
+      console.error("[ensure-approved-order-pdf]", result.error);
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      ready: true,
+      pdf_path: result.pdfPath,
+      file_name: result.fileName,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "PDF build failed.";
+    console.error("[ensure-approved-order-pdf]", e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

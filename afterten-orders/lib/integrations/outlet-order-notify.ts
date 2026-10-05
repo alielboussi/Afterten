@@ -27,6 +27,59 @@ export function formatOutletOrderWhatsAppMessage(p: OutletOrderWhatsAppPayload):
   return lines.join("\n");
 }
 
+export type DriverLoadedWhatsAppLine = {
+  name: string;
+  qty: number;
+  uom: string | null;
+};
+
+export type DriverLoadedWhatsAppPayload = {
+  orderNumber: string;
+  orderId: string;
+  outletName: string;
+  outletId: string;
+  driverName: string;
+  loadedAtKitwe: string;
+  lines: DriverLoadedWhatsAppLine[];
+};
+
+export function formatDriverLoadedWhatsAppMessage(p: DriverLoadedWhatsAppPayload): string {
+  const itemLines = p.lines.map((line) => {
+    const uom = line.uom?.trim() ? ` ${line.uom.trim()}` : "";
+    return `• ${line.qty} × ${line.name}${uom}`;
+  });
+
+  const body = [
+    "🚚 *Order loaded & dispatched*",
+    "",
+    `*Order:* ${p.orderNumber}`,
+    `*Order ID:* ${p.orderId}`,
+    `*Outlet:* ${p.outletName} (${p.outletId})`,
+    `*Driver:* ${p.driverName}`,
+    `*When:* ${p.loadedAtKitwe} (Kitwe)`,
+    "",
+    "*Items:*",
+    ...(itemLines.length > 0 ? itemLines : ["• (no lines)"]),
+    "",
+    "_Afterten Orders_",
+  ];
+  return body.join("\n");
+}
+
+export function whatsAppSkipReason(env: {
+  wasenderKey?: string;
+  groupJid?: string;
+}): string | null {
+  const key = env.wasenderKey?.trim();
+  const jid = env.groupJid?.trim();
+  if (!key && !jid) {
+    return "WhatsApp not configured (WASENDER_API_KEY and WHATSAPP_ORDERS_GROUP_JID missing on server).";
+  }
+  if (!key) return "WhatsApp not configured (WASENDER_API_KEY missing on server).";
+  if (!jid) return "WhatsApp not configured (WHATSAPP_ORDERS_GROUP_JID missing on server).";
+  return null;
+}
+
 export async function sendWasenderGroupText(input: {
   apiKey: string;
   groupJid: string;

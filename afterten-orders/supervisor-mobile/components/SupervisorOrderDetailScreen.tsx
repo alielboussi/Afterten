@@ -11,9 +11,13 @@ import {
 } from "react-native";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatKwacha, formatOrderDate } from "../lib/currency";
-import { downloadApprovedOrderPdf } from "../lib/approved-order-pdf";
+import {
+  buildSupervisorPreviewGroups,
+  fetchOrderRulesContext,
+} from "../lib/supervisor-preview-display";
 import {
   acceptSupervisorOrder,
+  assertSupervisorPayloadMatchesLines,
   buildItemsPayload,
   editableLinesFromDetail,
   fetchSupervisorOrderDetail,
@@ -26,7 +30,7 @@ type Props = {
   supabase: SupabaseClient;
   orderId: string;
   onBack: () => void;
-  onAccepted: (message: string) => void;
+  onAccepted: () => void;
   contentPaddingBottom: number;
 };
 
@@ -47,19 +51,37 @@ export function SupervisorOrderDetailScreen({
   const [status, setStatus] = useState("");
   const [editable, setEditable] = useState<EditableOrderLine[]>([]);
   const [previewLines, setPreviewLines] = useState<SupervisorPreviewLine[]>([]);
+  const [rulesContext, setRulesContext] = useState<
+    Awaited<ReturnType<typeof fetchOrderRulesContext>>
+  >({ rules: [], catalogById: new Map() });
   const [grandTotal, setGrandTotal] = useState(0);
   const [variantPickerIndex, setVariantPickerIndex] = useState<number | null>(null);
+  /** In-progress qty text so clearing the field does not drop the line from preview. */
+  const [qtyDraftByProductId, setQtyDraftByProductId] = useState<Record<string, string>>({});
+
+  const qtyDisplayValue = useCallback(
+    (productId: string, numericQty: number) => {
+      if (Object.prototype.hasOwnProperty.call(qtyDraftByProductId, productId)) {
+        return qtyDraftByProductId[productId];
+      }
+      return String(numericQty);
+    },
+    [qtyDraftByProductId],
+  );
 
   const refreshPreview = useCallback(
     async (lines: EditableOrderLine[]) => {
       const payload = buildItemsPayload(lines);
+      const payloadErr = assertSupervisorPayloadMatchesLines(lines, payload);
+      if (payloadErr) {
+        setError(payloadErr);
+        return;
+      }
       if (payload.length === 0) {
-        setPreviewLines([]);
-        setGrandTotal(0);
         return;
       }
       const { lines: preview, grandTotal: total, error: previewErr } =
-        await previewSupervisorOrderRevision(supabase, payload);
+        await previewSupervisorOrderRevision(supabase, orderId, payload);
       if (previewErr) {
         setError(previewErr);
         return;
@@ -67,8 +89,18 @@ export function SupervisorOrderDetailScreen({
       setPreviewLines(preview);
       setGrandTotal(total);
     },
-    [supabase],
+    [orderId, supabase],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchOrderRulesContext(supabase).then((ctx) => {
+      if (!cancelled) setRulesContext(ctx);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,11 +131,43 @@ export function SupervisorOrderDetailScreen({
   const canAccept = status === "placed" && !busy;
 
   async function onQtyChange(index: number, text: string) {
-    const qty = Number(text.replace(/[^0-9.]/g, ""));
+    const line = editable[index];
+    if (!line) return;
+    const cleaned = text.replace(/[^0-9.]/g, "");
+    const productId = line.product_id;
+    setQtyDraftByProductId((prev) => ({ ...prev, [productId]: cleaned }));
+
+    if (cleaned === "" || cleaned === "." || cleaned === "0") {
+      return;
+    }
+
+    const qty = Number(cleaned);
     if (!Number.isFinite(qty) || qty < 0) return;
-    const next = editable.map((line, i) => (i === index ? { ...line, qty } : line));
+
+    const next = editable.map((l, i) => (i === index ? { ...l, qty } : l));
     setEditable(next);
+    setError(null);
     await refreshPreview(next);
+  }
+
+  function onQtyBlur(index: number) {
+    const line = editable[index];
+    if (!line) return;
+    const productId = line.product_id;
+    const draft = qtyDraftByProductId[productId];
+    setQtyDraftByProductId((prev) => {
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+    if (draft === undefined) return;
+    if (draft === "" || draft === ".") {
+      return;
+    }
+    const qty = Number(draft);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError("Quantity must be greater than zero.");
+    }
   }
 
   async function onPickVariant(index: number, variantId: string, variantName: string) {
@@ -120,24 +184,30 @@ export function SupervisorOrderDetailScreen({
     setBusy(true);
     setError(null);
     const payload = buildItemsPayload(editable);
-    const { error: acceptErr } = await acceptSupervisorOrder(supabase, orderId, payload);
-    if (acceptErr) {
+    const payloadErr = assertSupervisorPayloadMatchesLines(editable, payload);
+    if (payloadErr) {
       setBusy(false);
+      setError(payloadErr);
+      return;
+    }
+    const { error: acceptErr } = await acceptSupervisorOrder(supabase, orderId, payload);
+    setBusy(false);
+    if (acceptErr) {
       setError(acceptErr);
       return;
     }
-    const pdf = await downloadApprovedOrderPdf(supabase, orderId);
-    setBusy(false);
-    if (!pdf.ok) {
-      onAccepted(`Order accepted. PDF: ${pdf.error}`);
-      onBack();
-      return;
-    }
-    onAccepted(`Order accepted. PDF ready: ${pdf.fileName}`);
-    onBack();
+    onAccepted();
   }
 
-  const groupedDisplay = useMemo(() => previewLines, [previewLines]);
+  const displayGroups = useMemo(
+    () =>
+      buildSupervisorPreviewGroups(
+        previewLines,
+        rulesContext.rules,
+        rulesContext.catalogById,
+      ),
+    [previewLines, rulesContext],
+  );
 
   if (loading) {
     return (
@@ -179,45 +249,66 @@ export function SupervisorOrderDetailScreen({
             <Text style={[styles.cellHeader, styles.colAmount]}>Amount</Text>
           </View>
 
-          {groupedDisplay.map((row) => {
-            const editIndex = editable.findIndex(
-              (e) => !row.is_auto && e.product_id === row.product_id,
-            );
-            const isEditable = !row.is_auto && editIndex >= 0;
-            return (
-              <View key={`${row.product_id}-${row.is_auto ? "a" : "m"}`} style={styles.tableBodyRow}>
-                <View style={styles.colProduct}>
-                  <Text style={row.is_auto ? styles.cellAuto : styles.cellMain}>
-                    {row.is_auto ? `- ${row.name}` : row.name}
-                  </Text>
-                  {isEditable && editable[editIndex]?.variants.length > 0 ? (
-                    <Pressable
-                      onPress={() => setVariantPickerIndex(editIndex)}
-                      accessibilityRole="button"
-                    >
-                      <Text style={styles.swapLink}>Change variant</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-                {isEditable ? (
-                  <TextInput
-                    style={[styles.qtyInput, styles.colQty]}
-                    keyboardType="decimal-pad"
-                    value={String(editable[editIndex]?.qty ?? row.qty)}
-                    onChangeText={(t) => void onQtyChange(editIndex, t)}
-                  />
-                ) : (
-                  <Text style={[styles.cellBody, styles.colQty]}>{row.qty}</Text>
-                )}
-                <Text style={[styles.cellBody, styles.colUom]} numberOfLines={2}>
-                  {row.uom}
-                </Text>
-                <Text style={[styles.cellBody, styles.colAmount]}>
-                  {row.line_total > 0 ? formatKwacha(row.line_total) : ""}
-                </Text>
-              </View>
-            );
-          })}
+          {displayGroups.map((group) => (
+            <View key={group.groupKey}>
+              {group.rows.map((row) => {
+                const editIndex = editable.findIndex(
+                  (e) => e.product_id.toLowerCase() === row.product_id.toLowerCase(),
+                );
+                const isEditable = row.kind === "main" && editIndex >= 0;
+                const qtyLabel =
+                  row.kind === "auto"
+                    ? Number.isInteger(row.qty)
+                      ? String(row.qty)
+                      : String(row.qty)
+                    : null;
+
+                return (
+                  <View key={row.rowKey} style={styles.tableBodyRow}>
+                    <View style={styles.colProduct}>
+                      <Text
+                        style={
+                          row.kind === "main" ? styles.cellProductNameMain : styles.cellProductNameAuto
+                        }
+                      >
+                        {row.kind === "auto" ? `- ${row.name}` : row.name}
+                      </Text>
+                      {isEditable && editable[editIndex]?.variants.length > 0 ? (
+                        <Pressable
+                          onPress={() => setVariantPickerIndex(editIndex)}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.swapLink}>Change variant</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    {isEditable ? (
+                      <TextInput
+                        style={[styles.qtyInput, styles.colQty]}
+                        keyboardType="decimal-pad"
+                        value={qtyDisplayValue(
+                          editable[editIndex]!.product_id,
+                          editable[editIndex]?.qty ?? row.qty,
+                        )}
+                        onChangeText={(t) => void onQtyChange(editIndex, t)}
+                        onBlur={() => onQtyBlur(editIndex)}
+                      />
+                    ) : (
+                      <Text style={[styles.cellBody, styles.colQty]}>
+                        {row.kind === "main" ? row.qty : qtyLabel}
+                      </Text>
+                    )}
+                    <Text style={[styles.cellBody, styles.colUom]} numberOfLines={2}>
+                      {row.uom}
+                    </Text>
+                    <Text style={[styles.cellBody, styles.colAmount]}>
+                      {row.line_total > 0 ? formatKwacha(row.line_total) : ""}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ))}
         </View>
 
         <View style={styles.totalRow}>
@@ -296,11 +387,23 @@ const styles = StyleSheet.create({
   },
   cellHeader: { fontSize: 11, fontWeight: "700", color: "#57534e" },
   cellBody: { fontSize: 12, color: "#292524" },
-  cellMain: { fontSize: 13, fontWeight: "600", color: "#292524" },
-  cellAuto: { fontSize: 12, color: "#57534e" },
+  cellProductNameMain: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#292524",
+    lineHeight: 18,
+    textDecorationLine: "underline",
+  },
+  cellProductNameAuto: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#57534e",
+    lineHeight: 18,
+    paddingLeft: 4,
+  },
   colProduct: { flex: 2.2 },
   colQty: { flex: 0.7, textAlign: "center" },
-  colUom: { flex: 0.9 },
+  colUom: { flex: 0.9, paddingLeft: 8, textAlign: "center" },
   colAmount: { flex: 1, textAlign: "right" },
   qtyInput: {
     borderWidth: 1,

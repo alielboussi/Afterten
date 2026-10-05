@@ -1,13 +1,24 @@
 import { useEffect } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = {
   message: string | null;
   onDismiss: () => void;
   durationMs?: number;
+  title?: string;
 };
 
-export function ToastBanner({ message, onDismiss, durationMs = 4500 }: Props) {
+function toastBottomOffset(insets: { bottom: number }): number {
+  if (Platform.OS === "android") {
+    return Math.max(insets.bottom + 10, 48) + 12;
+  }
+  return Math.max(insets.bottom, 12) + 12;
+}
+
+export function ToastBanner({ message, onDismiss, durationMs = 4500, title }: Props) {
+  const insets = useSafeAreaInsets();
+
   useEffect(() => {
     if (!message) return;
     const timer = setTimeout(onDismiss, durationMs);
@@ -17,8 +28,12 @@ export function ToastBanner({ message, onDismiss, durationMs = 4500 }: Props) {
   if (!message) return null;
 
   return (
-    <View style={styles.wrap} accessibilityRole="alert" accessibilityLiveRegion="polite">
-      <Text style={styles.title}>New outlet order</Text>
+    <View
+      style={[styles.wrap, { bottom: toastBottomOffset(insets) }]}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+    >
+      <Text style={styles.title}>{title ?? "New outlet order"}</Text>
       <Text style={styles.text}>{message}</Text>
     </View>
   );
@@ -29,7 +44,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    bottom: 28,
     backgroundColor: "#1e3a8a",
     borderRadius: 12,
     paddingVertical: 14,

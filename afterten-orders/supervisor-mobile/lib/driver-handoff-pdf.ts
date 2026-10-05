@@ -13,7 +13,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function ensureApprovedPdf(
+async function ensureHandoffPdf(
   supabase: SupabaseClient,
   orderId: string,
 ): Promise<
@@ -26,7 +26,7 @@ async function ensureApprovedPdf(
     return { ok: false, error: "Not signed in." };
   }
 
-  const res = await fetch(`${portalBaseUrl()}/api/outlet-app/ensure-approved-order-pdf`, {
+  const res = await fetch(`${portalBaseUrl()}/api/outlet-app/ensure-driver-handoff-pdf`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${session.access_token}`,
@@ -45,7 +45,6 @@ async function ensureApprovedPdf(
   if (!res.ok) {
     const msg =
       (typeof body?.error === "string" && body.error) ||
-      (raw.trim() && raw.length < 240 ? raw.trim() : "") ||
       `Could not build PDF (HTTP ${res.status}).`;
     return { ok: false, error: msg };
   }
@@ -54,60 +53,48 @@ async function ensureApprovedPdf(
   const fileName =
     typeof body?.file_name === "string" && body.file_name.trim()
       ? body.file_name.trim()
-      : "approved-order.pdf";
-  if (!pdfPath.startsWith("approved-orders/")) {
-    return { ok: false, error: "Approved PDF path missing." };
+      : "driver-handoff.pdf";
+  if (!pdfPath.startsWith("driver-handoffs/")) {
+    return { ok: false, error: "Handoff PDF path missing." };
   }
 
-  return { ok: true, fileName, storageKey: pdfPath.replace(/^approved-orders\//, "") };
+  return { ok: true, fileName, storageKey: pdfPath.replace(/^driver-handoffs\//, "") };
 }
 
-export async function downloadApprovedOrderPdf(
+export async function downloadDriverHandoffPdf(
   supabase: SupabaseClient,
   orderId: string,
 ): Promise<{ ok: true; fileName: string } | { ok: false; error: string }> {
   let lastError = "Could not build PDF.";
   for (let attempt = 0; attempt < 8; attempt++) {
-    if (attempt > 0) {
-      await sleep(900);
+    if (attempt > 0) await sleep(900);
+    const ensured = await ensureHandoffPdf(supabase, orderId);
+    if (!ensured.ok) {
+      lastError = ensured.error;
+      continue;
     }
-    const ensured = await ensureApprovedPdf(supabase, orderId);
-    if (ensured.ok) {
-      const { data, error } = await supabase.storage
-        .from("approved-orders")
-        .download(ensured.storageKey);
-      if (error || !data) {
-        lastError = error?.message ?? "Could not download PDF.";
-        continue;
-      }
-
-      try {
-        const dest = new File(Paths.cache, ensured.fileName);
-        const buffer = await data.arrayBuffer();
-        dest.write(new Uint8Array(buffer));
-
-        const canShare = await Sharing.isAvailableAsync();
-        if (canShare) {
-          await Sharing.shareAsync(dest.uri, {
-            mimeType: "application/pdf",
-            UTI: "com.adobe.pdf",
-            dialogTitle: "Approved order PDF",
-          });
-        }
-        return { ok: true, fileName: ensured.fileName };
-      } catch (e) {
-        return { ok: false, error: e instanceof Error ? e.message : "Download failed." };
-      }
+    const { data, error } = await supabase.storage
+      .from("driver-handoffs")
+      .download(ensured.storageKey);
+    if (error || !data) {
+      lastError = error?.message ?? "Could not download PDF.";
+      continue;
     }
-    lastError = ensured.error;
-    if (
-      !lastError.includes("HTTP 5") &&
-      !lastError.includes("not supervisor-approved") &&
-      !lastError.includes("Approved PDF path")
-    ) {
-      break;
+    try {
+      const dest = new File(Paths.cache, ensured.fileName);
+      dest.write(new Uint8Array(await data.arrayBuffer()));
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(dest.uri, {
+          mimeType: "application/pdf",
+          UTI: "com.adobe.pdf",
+          dialogTitle: "Driver handoff PDF",
+        });
+      }
+      return { ok: true, fileName: ensured.fileName };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Download failed." };
     }
   }
-
   return { ok: false, error: lastError };
 }

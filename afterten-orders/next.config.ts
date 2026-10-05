@@ -8,8 +8,27 @@ const nextConfig: NextConfig = {
     "@supabase/supabase-js",
     "@supabase/ssr",
     "pdfkit",
+    "fontkit",
     "sharp",
   ],
+  outputFileTracingIncludes: {
+    "/api/outlet-app/ensure-order-pdf": [
+      "./node_modules/pdfkit/js/data/**/*",
+      "./lib/assets/afterten-logo.png",
+    ],
+    "/api/outlet-app/ensure-approved-order-pdf": [
+      "./node_modules/pdfkit/js/data/**/*",
+      "./lib/assets/afterten-logo.png",
+    ],
+    "/api/webhooks/supervisor-order-accepted": [
+      "./node_modules/pdfkit/js/data/**/*",
+      "./lib/assets/afterten-logo.png",
+    ],
+    "/api/**": [
+      "./node_modules/pdfkit/js/data/**/*",
+      "./lib/assets/afterten-logo.png",
+    ],
+  },
   experimental: {
     serverActions: {
       // Product image uploads (Supabase bucket max 5 MB); default Next limit is 1 MB.

@@ -20,8 +20,11 @@ import {
   getSupervisorAppReturnUri,
   getSupervisorSupabaseRedirectAllowlistHint,
 } from "./lib/supervisor-oauth-urls";
+import { downloadApprovedOrderPdf } from "./lib/approved-order-pdf";
 import { signInWithGoogle } from "./lib/google-auth";
 import { subscribeToNewOutletOrders } from "./lib/order-realtime";
+import { DeliveryLoadingChecklistScreen } from "./components/DeliveryLoadingChecklistScreen";
+import { DeliveryDriverHandoffScreen } from "./components/DeliveryDriverHandoffScreen";
 import { OrdersScreen } from "./components/OrdersScreen";
 import { SupervisorOrderDetailScreen } from "./components/SupervisorOrderDetailScreen";
 import { ToastBanner } from "./components/ToastBanner";
@@ -33,7 +36,9 @@ type Screen =
   | "home"
   | "orders"
   | "orderDetail"
-  | "deliveryLoading";
+  | "deliveryLoading"
+  | "deliveryLoadingChecklist"
+  | "deliveryLoadingHandoff";
 
 function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void }) {
   const insets = useSafeAreaInsets();
@@ -44,6 +49,28 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
   const [profile, setProfile] = useState<SupervisorProfile | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [actionToast, setActionToast] = useState<string | null>(null);
+  const [ordersRefreshToken, setOrdersRefreshToken] = useState(0);
+  const [deliveryRefreshToken, setDeliveryRefreshToken] = useState(0);
+  const [deliveryLoadingOrderId, setDeliveryLoadingOrderId] = useState<string | null>(null);
+  const [deliveryToast, setDeliveryToast] = useState<string | null>(null);
+
+  const finishOrderAcceptance = useCallback(
+    (acceptedOrderId: string) => {
+      setSelectedOrderId(null);
+      setScreen("orders");
+      setOrdersRefreshToken((t) => t + 1);
+      setActionToast("Order accepted. Preparing PDF…");
+      void (async () => {
+        const pdf = await downloadApprovedOrderPdf(supabase!, acceptedOrderId);
+        setActionToast(
+          pdf.ok
+            ? `Order accepted. PDF ready: ${pdf.fileName}`
+            : `Order accepted. PDF: ${pdf.error}`,
+        );
+      })();
+    },
+    [supabase],
+  );
 
   const bootstrap = useCallback(async () => {
     if (!supabase) {
@@ -128,14 +155,66 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
             setSelectedOrderId(null);
             setScreen("orders");
           }}
-          onAccepted={(message) => {
-            setActionToast(message);
-            setSelectedOrderId(null);
-            setScreen("orders");
+          onAccepted={() => finishOrderAcceptance(selectedOrderId)}
+          contentPaddingBottom={contentPaddingBottom}
+        />
+        <StatusBar style="auto" />
+      </View>
+    );
+  }
+
+  if (screen === "deliveryLoadingHandoff" && supabase && profile?.approved && deliveryLoadingOrderId) {
+    return (
+      <View
+        style={[
+          styles.home,
+          { paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: insets.bottom },
+        ]}
+      >
+        <DeliveryDriverHandoffScreen
+          supabase={supabase}
+          orderId={deliveryLoadingOrderId}
+          onBack={() => {
+            setDeliveryLoadingOrderId(null);
+            setScreen("deliveryLoading");
+          }}
+          onComplete={(message) => {
+            setDeliveryToast(message);
+            setDeliveryLoadingOrderId(null);
+            setDeliveryRefreshToken((t) => t + 1);
+            setScreen("deliveryLoading");
           }}
           contentPaddingBottom={contentPaddingBottom}
         />
-        <ToastBanner message={actionToast} onDismiss={() => setActionToast(null)} />
+        <StatusBar style="auto" />
+      </View>
+    );
+  }
+
+  if (screen === "deliveryLoadingChecklist" && supabase && profile?.approved && deliveryLoadingOrderId) {
+    return (
+      <View
+        style={[
+          styles.home,
+          { paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: insets.bottom },
+        ]}
+      >
+        <DeliveryLoadingChecklistScreen
+          supabase={supabase}
+          orderId={deliveryLoadingOrderId}
+          onBack={() => {
+            setDeliveryLoadingOrderId(null);
+            setScreen("deliveryLoading");
+          }}
+          onConfirmed={() => {
+            setDeliveryLoadingOrderId(null);
+            setDeliveryRefreshToken((t) => t + 1);
+            setDeliveryToast("Loading checklist confirmed. You can now sign driver handoff.");
+            setScreen("deliveryLoading");
+          }}
+          onToast={setDeliveryToast}
+          contentPaddingBottom={contentPaddingBottom}
+        />
         <StatusBar style="auto" />
       </View>
     );
@@ -154,9 +233,21 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
           onBack={() => setScreen("home")}
           contentPaddingBottom={contentPaddingBottom}
           statusFilter="accepted"
+          refreshToken={deliveryRefreshToken}
+          deliveryLoadingMode
+          onOpenLoadingChecklist={(orderId) => {
+            setDeliveryLoadingOrderId(orderId);
+            setScreen("deliveryLoadingChecklist");
+          }}
+          onOpenDriverHandoff={(orderId) => {
+            setDeliveryLoadingOrderId(orderId);
+            setScreen("deliveryLoadingHandoff");
+          }}
+          onDeliveryToast={setDeliveryToast}
           title="Delivery Loading"
-          subtitle="Approved orders ready for loading (more steps coming soon)."
+          subtitle="Tick items loaded, then capture driver name and signature."
         />
+        <ToastBanner message={deliveryToast} onDismiss={() => setDeliveryToast(null)} />
         <StatusBar style="auto" />
       </View>
     );
@@ -175,10 +266,16 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
           onBack={() => setScreen("home")}
           contentPaddingBottom={contentPaddingBottom}
           statusFilter="placed"
+          refreshToken={ordersRefreshToken}
           onOpenOrder={(orderId) => {
             setSelectedOrderId(orderId);
             setScreen("orderDetail");
           }}
+        />
+        <ToastBanner
+          message={actionToast}
+          title="Order accepted"
+          onDismiss={() => setActionToast(null)}
         />
         <StatusBar style="auto" />
       </View>
@@ -211,11 +308,11 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
             <Text style={styles.showOrdersBtnText}>Show orders</Text>
           </Pressable>
           <Pressable
-            style={[styles.deliveryBtn, busy && styles.primaryBtnDisabled]}
+            style={[styles.showOrdersBtn, styles.dashboardSecondBtn, busy && styles.primaryBtnDisabled]}
             onPress={() => setScreen("deliveryLoading")}
             accessibilityRole="button"
           >
-            <Text style={styles.deliveryBtnText}>Delivery Loading</Text>
+            <Text style={styles.showOrdersBtnText}>Delivery Loading</Text>
           </Pressable>
         </View>
         <StatusBar style="auto" />
@@ -379,18 +476,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   showOrdersBtnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
-  deliveryBtn: {
-    backgroundColor: "#fff",
-    borderRadius: 999,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    minWidth: 220,
-    alignItems: "center",
-    marginTop: 12,
-    borderWidth: 2,
-    borderColor: "#1e3a8a",
-  },
-  deliveryBtnText: { color: "#1e3a8a", fontWeight: "700", fontSize: 16 },
+  dashboardSecondBtn: { marginTop: 12 },
   secondaryBtn: {
     backgroundColor: "#1e3a8a",
     borderRadius: 999,

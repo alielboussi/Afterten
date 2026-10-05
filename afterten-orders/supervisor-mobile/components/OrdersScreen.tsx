@@ -11,6 +11,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchSupervisorOrders, type SupervisorOrderRow } from "../lib/supabase";
 import { OrderCard } from "./OrderCard";
+import { DeliveryLoadingOrderCard } from "./DeliveryLoadingOrderCard";
 
 type Props = {
   supabase: SupabaseClient;
@@ -18,8 +19,13 @@ type Props = {
   contentPaddingBottom: number;
   onOpenOrder?: (orderId: string) => void;
   statusFilter?: string | null;
+  refreshToken?: number;
   title?: string;
   subtitle?: string;
+  deliveryLoadingMode?: boolean;
+  onOpenLoadingChecklist?: (orderId: string) => void;
+  onOpenDriverHandoff?: (orderId: string) => void;
+  onDeliveryToast?: (message: string) => void;
 };
 
 export function OrdersScreen({
@@ -28,8 +34,13 @@ export function OrdersScreen({
   contentPaddingBottom,
   onOpenOrder,
   statusFilter = "placed",
+  refreshToken = 0,
   title = "View orders",
   subtitle = "Search by order number, outlet name, date, amount, or placed-by name.",
+  deliveryLoadingMode = false,
+  onOpenLoadingChecklist,
+  onOpenDriverHandoff,
+  onDeliveryToast,
 }: Props) {
   const [query, setQuery] = useState("");
   const [orders, setOrders] = useState<SupervisorOrderRow[]>([]);
@@ -68,7 +79,7 @@ export function OrdersScreen({
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshToken]);
 
   return (
     <View style={styles.root}>
@@ -100,12 +111,23 @@ export function OrdersScreen({
         <FlatList
           data={filteredOrders}
           keyExtractor={(item) => item.order_id}
-          renderItem={({ item }) => (
-            <OrderCard
-              order={item}
-              onPress={onOpenOrder ? () => onOpenOrder(item.order_id) : undefined}
-            />
-          )}
+          renderItem={({ item }) =>
+            deliveryLoadingMode ? (
+              <DeliveryLoadingOrderCard
+                order={item}
+                onChecklistPress={() => onOpenLoadingChecklist?.(item.order_id)}
+                onSignaturePress={() => onOpenDriverHandoff?.(item.order_id)}
+                onSignatureBlocked={() =>
+                  onDeliveryToast?.("Complete the loading checklist first.")
+                }
+              />
+            ) : (
+              <OrderCard
+                order={item}
+                onPress={onOpenOrder ? () => onOpenOrder(item.order_id) : undefined}
+              />
+            )
+          }
           contentContainerStyle={{ paddingBottom: contentPaddingBottom }}
           ListEmptyComponent={
             <Text style={styles.empty}>No orders match your search.</Text>

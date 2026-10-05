@@ -115,6 +115,23 @@ export function buildItemsPayload(lines: EditableOrderLine[]): { product_id: str
     .map((l) => ({ product_id: l.product_id, qty: l.qty }));
 }
 
+/** Every manual line on the placed order must stay in the payload (qty edits only, no add/remove). */
+export function assertSupervisorPayloadMatchesLines(
+  lines: EditableOrderLine[],
+  payload: { product_id: string; qty: number }[],
+): string | null {
+  if (payload.length !== lines.length) {
+    return "Supervisors cannot add or remove order lines—only change quantity or variant.";
+  }
+  const payloadIds = new Set(payload.map((p) => p.product_id.toLowerCase()));
+  for (const line of lines) {
+    if (!payloadIds.has(line.product_id.toLowerCase())) {
+      return "Supervisors cannot add or remove order lines—only change quantity or variant.";
+    }
+  }
+  return null;
+}
+
 export async function fetchSupervisorOrderDetail(
   supabase: SupabaseClient,
   orderId: string,
@@ -130,6 +147,7 @@ export async function fetchSupervisorOrderDetail(
 
 export async function previewSupervisorOrderRevision(
   supabase: SupabaseClient,
+  orderId: string,
   items: { product_id: string; qty: number }[],
 ): Promise<{
   lines: SupervisorPreviewLine[];
@@ -137,6 +155,7 @@ export async function previewSupervisorOrderRevision(
   error: string | null;
 }> {
   const { data, error } = await supabase.rpc("preview_supervisor_order_revision", {
+    p_order_id: orderId,
     p_items: items,
   });
   if (error) return { lines: [], grandTotal: 0, error: error.message };

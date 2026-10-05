@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   },
   colProduct: { flex: 1.6, paddingRight: 6 },
   colQty: { width: 40, textAlign: "center" },
-  colUom: { width: 52, textAlign: "center" },
+  colUom: { width: 52, paddingLeft: 8, textAlign: "center" },
   colAmount: { width: 96, textAlign: "right" },
   cellProductNameMain: {
     fontSize: 13,

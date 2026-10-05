@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Pressable,
   StyleSheet,
@@ -16,9 +17,11 @@ export type OutletAcceptedOrderRow = {
   order_id: string;
   order_number: string;
   outlet_name: string;
+  status: string;
   grand_total: number;
   created_at: string;
   supervisor_accepted_at: string | null;
+  loaded_at: string | null;
   employee_name: string | null;
 };
 
@@ -59,10 +62,12 @@ export function ViewOrdersScreen({
           order_id: String(r.order_id ?? ""),
           order_number: String(r.order_number ?? ""),
           outlet_name: String(r.outlet_name ?? ""),
+          status: String(r.status ?? "accepted"),
           grand_total: Number(r.grand_total ?? 0),
           created_at: String(r.created_at ?? ""),
           supervisor_accepted_at:
             r.supervisor_accepted_at != null ? String(r.supervisor_accepted_at) : null,
+          loaded_at: r.loaded_at != null ? String(r.loaded_at) : null,
           employee_name: r.employee_name != null ? String(r.employee_name) : null,
         };
       }),
@@ -101,31 +106,12 @@ export function ViewOrdersScreen({
           contentContainerStyle={{ paddingBottom: contentPaddingBottom }}
           ListEmptyComponent={<Text style={styles.empty}>No approved orders yet.</Text>}
           renderItem={({ item }) => (
-            <Pressable style={styles.card} onPress={() => onOpenOrder(item.order_id)}>
-              <View style={styles.cardTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.outletName}>{item.outlet_name}</Text>
-                  <Text style={styles.orderNumber}>{item.order_number}</Text>
-                  <Text style={styles.meta}>
-                    {formatOrderDate(item.supervisor_accepted_at ?? item.created_at)} (Kitwe)
-                  </Text>
-                  <Text style={styles.total}>{formatKwacha(item.grand_total)}</Text>
-                </View>
-                <Pressable
-                  style={styles.pdfBtn}
-                  onPress={() => void onPdf(item.order_id)}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Download PDF"
-                >
-                  {pdfBusyId === item.order_id ? (
-                    <ActivityIndicator size="small" color="#1e3a8a" />
-                  ) : (
-                    <Ionicons name="document-outline" size={26} color="#1e3a8a" />
-                  )}
-                </Pressable>
-              </View>
-            </Pressable>
+            <OutletOrderCard
+              item={item}
+              pdfBusy={pdfBusyId === item.order_id}
+              onOpen={() => onOpenOrder(item.order_id)}
+              onPdf={() => void onPdf(item.order_id)}
+            />
           )}
         />
       )}
@@ -166,5 +152,78 @@ const styles = StyleSheet.create({
   orderNumber: { fontSize: 14, fontWeight: "700", color: "#1e3a8a", marginTop: 2 },
   meta: { fontSize: 12, color: "#57534e", marginTop: 4 },
   total: { fontSize: 15, fontWeight: "700", color: "#c41e3a", marginTop: 6 },
+  loadedBanner: {
+    backgroundColor: "#047857",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  loadedBannerText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+    textAlign: "center",
+  },
   pdfBtn: { padding: 6 },
 });
+
+function OutletOrderCard({
+  item,
+  pdfBusy,
+  onOpen,
+  onPdf,
+}: {
+  item: OutletAcceptedOrderRow;
+  pdfBusy: boolean;
+  onOpen: () => void;
+  onPdf: () => void;
+}) {
+  const pulse = useRef(new Animated.Value(1)).current;
+  const isLoaded = item.status === "loaded";
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.35, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isLoaded, pulse]);
+
+  return (
+    <Pressable style={styles.card} onPress={onOpen}>
+      {isLoaded ? (
+        <Animated.View style={[styles.loadedBanner, { opacity: pulse }]}>
+          <Text style={styles.loadedBannerText}>Order Loaded & En Route</Text>
+        </Animated.View>
+      ) : null}
+      <View style={styles.cardTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.outletName}>{item.outlet_name}</Text>
+          <Text style={styles.orderNumber}>{item.order_number}</Text>
+          <Text style={styles.meta}>
+            {formatOrderDate(item.supervisor_accepted_at ?? item.created_at)} (Kitwe)
+          </Text>
+          <Text style={styles.total}>{formatKwacha(item.grand_total)}</Text>
+        </View>
+        <Pressable
+          style={styles.pdfBtn}
+          onPress={onPdf}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Download PDF"
+        >
+          {pdfBusy ? (
+            <ActivityIndicator size="small" color="#1e3a8a" />
+          ) : (
+            <Ionicons name="document-outline" size={26} color="#1e3a8a" />
+          )}
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+}

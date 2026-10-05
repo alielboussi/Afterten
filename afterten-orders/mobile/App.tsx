@@ -78,6 +78,7 @@ function AppShell() {
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [viewOrdersActive, setViewOrdersActive] = useState(false);
   const [viewOrderDetailId, setViewOrderDetailId] = useState<string | null>(null);
+  const [offloadingActive, setOffloadingActive] = useState(false);
 
   async function onViewSummary() {
     if (!supabase || !cartHasItems(cartQty)) return;
@@ -269,6 +270,30 @@ function AppShell() {
             contentPaddingBottom={screenLayout.paddingBottom + 16}
           />
           <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
+          <StatusBar style="auto" />
+        </View>
+      );
+    }
+
+    if (offloadingActive) {
+      return (
+        <View
+          style={[
+            styles.home,
+            {
+              paddingTop: screenLayout.paddingTop,
+              paddingBottom: screenLayout.paddingBottom,
+              paddingHorizontal: screenLayout.paddingHorizontal,
+            },
+          ]}
+        >
+          <Pressable style={styles.backLink} onPress={() => setOffloadingActive(false)}>
+            <Text style={styles.backLinkText}>← Dashboard</Text>
+          </Pressable>
+          <Text style={styles.offloadingTitle}>Offloading</Text>
+          <Text style={styles.offloadingLead}>
+            This workflow will be configured next. Your loaded orders will appear here.
+          </Text>
           <StatusBar style="auto" />
         </View>
       );
@@ -494,6 +519,13 @@ function AppShell() {
                   accessibilityRole="button"
                 >
                   <Text style={styles.viewOrdersBtnText}>View Orders</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.offloadingBtn, compact && styles.offloadingBtnCompact]}
+                  onPress={() => setOffloadingActive(true)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.offloadingBtnText}>Offloading</Text>
                 </Pressable>
               </View>
               <View style={styles.dashboardActionsSlot} />
@@ -934,17 +966,41 @@ const styles = StyleSheet.create({
   placeOrderBtnText: { color: "#fff", fontWeight: "700", fontSize: 17 },
   viewOrdersBtn: {
     marginTop: 12,
-    backgroundColor: "#fff",
+    backgroundColor: "#c41e3a",
     borderRadius: 999,
     paddingVertical: 14,
     paddingHorizontal: 28,
     minWidth: 220,
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#1e3a8a",
   },
   viewOrdersBtnCompact: { paddingVertical: 12, minWidth: 200 },
-  viewOrdersBtnText: { color: "#1e3a8a", fontWeight: "700", fontSize: 16 },
+  viewOrdersBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  offloadingBtn: {
+    marginTop: 12,
+    backgroundColor: "#1e3a8a",
+    borderRadius: 999,
+    paddingVertical: 16,
+    paddingHorizontal: 28,
+    minWidth: 220,
+    alignItems: "center",
+  },
+  offloadingBtnCompact: { paddingVertical: 12, minWidth: 200 },
+  offloadingBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  offloadingTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1e3a8a",
+    textAlign: "center",
+    marginTop: 24,
+  },
+  offloadingLead: {
+    fontSize: 14,
+    color: "#57534e",
+    textAlign: "center",
+    marginTop: 12,
+    lineHeight: 20,
+    paddingHorizontal: 16,
+  },
   backLink: { marginBottom: 6, paddingVertical: 2, alignSelf: "flex-start" },
   backLinkText: { color: "#c41e3a", fontWeight: "600", fontSize: 14 },
   productsLoading: { flex: 1, alignItems: "center", justifyContent: "center" },

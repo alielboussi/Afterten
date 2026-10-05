@@ -72,6 +72,8 @@ export type SupervisorOrderRow = {
   employee_name: string | null;
   grand_total: number;
   created_at: string;
+  loading_checklist_completed_at: string | null;
+  loaded_at: string | null;
 };
 
 export type OutletFilterOption = {
@@ -116,6 +118,11 @@ export async function fetchSupervisorOrders(
       employee_name: r.employee_name != null ? String(r.employee_name) : null,
       grand_total: Number(r.grand_total ?? 0),
       created_at: String(r.created_at ?? ""),
+      loading_checklist_completed_at:
+        r.loading_checklist_completed_at != null
+          ? String(r.loading_checklist_completed_at)
+          : null,
+      loaded_at: r.loaded_at != null ? String(r.loaded_at) : null,
     };
   });
 

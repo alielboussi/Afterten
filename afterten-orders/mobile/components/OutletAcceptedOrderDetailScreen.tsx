@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   cellAuto: { fontSize: 12, color: "#57534e" },
   colProduct: { flex: 2.2 },
   colQty: { flex: 0.7, textAlign: "center" },
-  colUom: { flex: 0.9 },
+  colUom: { flex: 0.9, paddingLeft: 8, textAlign: "center" },
   colAmount: { flex: 1, textAlign: "right" },
   totalRow: {
     flexDirection: "row",

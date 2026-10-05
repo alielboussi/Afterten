@@ -1,15 +1,33 @@
 import "server-only";
 
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const LOGO_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../assets/afterten-logo.png",
-);
+const LOGO_PATH = resolveLogoPath();
+
+function resolveLogoPath(): string {
+  const fromModule = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../assets/afterten-logo.png",
+  );
+  if (existsSync(fromModule)) return fromModule;
+  const fromCwd = path.join(process.cwd(), "lib", "assets", "afterten-logo.png");
+  if (existsSync(fromCwd)) return fromCwd;
+  return fromModule;
+}
+
+async function loadLogoPng(): Promise<Buffer | null> {
+  try {
+    if (!existsSync(LOGO_PATH)) return null;
+    return await sharp(LOGO_PATH).png().resize(120, 120, { fit: "inside" }).toBuffer();
+  } catch {
+    return null;
+  }
+}
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -111,7 +129,7 @@ function contentBottomLimit(): number {
 }
 
 export async function renderOutletOrderPdf(input: OrderPdfInput): Promise<Buffer> {
-  const logoBuf = await sharp(LOGO_PATH).png().resize(120, 120, { fit: "inside" }).toBuffer();
+  const logoBuf = await loadLogoPng();
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 0, bufferPages: true });
@@ -120,9 +138,11 @@ export async function renderOutletOrderPdf(input: OrderPdfInput): Promise<Buffer
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    doc.image(logoBuf, CONTENT_LEFT, PAD + BORDER_PT, { width: 72 });
+    if (logoBuf) {
+      doc.image(logoBuf, CONTENT_LEFT, PAD + BORDER_PT, { width: 72 });
+    }
 
-    const headerY = PAD + BORDER_PT + 4;
+    const headerY = logoBuf ? PAD + BORDER_PT + 4 : PAD + BORDER_PT + 8;
     doc.font("Helvetica-Bold").fontSize(11).fillColor("#1e3a8a");
     const headerLines = [
       input.outletName,
@@ -203,16 +223,53 @@ export async function renderOutletOrderPdf(input: OrderPdfInput): Promise<Buffer
   });
 }
 
+async function loadAutoAddedProductIds(admin: SupabaseClient): Promise<Set<string>> {
+  const { data: rules, error: rulesErr } = await admin
+    .from("product_order_rules")
+    .select("id")
+    .eq("active", true);
+  if (rulesErr || !rules?.length) return new Set();
+
+  const ruleIds = rules.map((r) => r.id as string);
+  const { data: adds, error: addsErr } = await admin
+    .from("product_order_rule_additions")
+    .select("added_product_id")
+    .in("rule_id", ruleIds);
+  if (addsErr || !adds?.length) return new Set();
+
+  return new Set(adds.map((a) => String(a.added_product_id ?? "").toLowerCase()).filter(Boolean));
+}
+
+async function loadDriverSignaturePng(
+  admin: SupabaseClient,
+  signaturePath: string | null,
+): Promise<Buffer | null> {
+  if (!signaturePath?.trim()) return null;
+  try {
+    const normalized = signaturePath.trim().replace(/^driver-signatures\//, "");
+    const { data, error } = await admin.storage.from("driver-signatures").download(normalized);
+    if (error || !data) return null;
+    const raw = Buffer.from(await data.arrayBuffer());
+    return sharp(raw).png().toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 export async function loadSignaturePng(
   admin: SupabaseClient,
   signaturePath: string | null,
 ): Promise<Buffer | null> {
   if (!signaturePath?.trim()) return null;
-  const normalized = signaturePath.trim().replace(/^signatures\//, "");
-  const { data, error } = await admin.storage.from("signatures").download(normalized);
-  if (error || !data) return null;
-  const raw = Buffer.from(await data.arrayBuffer());
-  return sharp(raw).png().toBuffer();
+  try {
+    const normalized = signaturePath.trim().replace(/^signatures\//, "");
+    const { data, error } = await admin.storage.from("signatures").download(normalized);
+    if (error || !data) return null;
+    const raw = Buffer.from(await data.arrayBuffer());
+    return sharp(raw).png().toBuffer();
+  } catch {
+    return null;
+  }
 }
 
 export async function generateAndStoreOutletOrderPdf(
@@ -283,16 +340,22 @@ export async function generateAndStoreOutletOrderPdf(
     order.employee_signature_path as string | null,
   );
 
-  const pdfBuffer = await renderOutletOrderPdf({
-    outletName: String(order.outlet_name),
-    outletId: String(order.outlet_id),
-    orderNumber: String(order.order_number),
-    placedAtLabel: `${placedAtLabel} (Kitwe)`,
-    employeeName: String(order.employee_name ?? "").trim() || "—",
-    grandTotalFormatted: grandFormatted,
-    lines,
-    signaturePng,
-  });
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await renderOutletOrderPdf({
+      outletName: String(order.outlet_name),
+      outletId: String(order.outlet_id),
+      orderNumber: String(order.order_number),
+      placedAtLabel: `${placedAtLabel} (Kitwe)`,
+      employeeName: String(order.employee_name ?? "").trim() || "—",
+      grandTotalFormatted: grandFormatted,
+      lines,
+      signaturePng,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "PDF render failed.";
+    return { ok: false, error: msg };
+  }
 
   const fileName = buildOrderPdfFileName(
     String(order.outlet_name),
@@ -305,8 +368,14 @@ export async function generateAndStoreOutletOrderPdf(
   const { error: uploadErr } = await admin.storage.from("order-pdfs").upload(storageKey, pdfBuffer, {
     contentType: "application/pdf",
     upsert: true,
+    cacheControl: "3600",
   });
-  if (uploadErr) return { ok: false, error: uploadErr.message };
+  if (uploadErr) {
+    return {
+      ok: false,
+      error: `Storage upload failed: ${uploadErr.message}. Check order-pdfs bucket and SUPABASE_SERVICE_ROLE_KEY on the portal.`,
+    };
+  }
 
   const { data: storedFile, error: verifyErr } = await admin.storage
     .from("order-pdfs")
@@ -363,11 +432,13 @@ export async function generateAndStoreApprovedOrderPdf(
 
   const { data: items, error: itemsErr } = await admin
     .from("outlet_order_items")
-    .select("name, qty, uom, line_total, sort_order")
+    .select("product_id, name, qty, uom, line_total, sort_order")
     .eq("order_id", orderId)
     .order("sort_order", { ascending: true });
 
   if (itemsErr) return { ok: false, error: itemsErr.message };
+
+  const autoAddedIds = await loadAutoAddedProductIds(admin);
 
   const placedAtLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Lusaka",
@@ -387,12 +458,13 @@ export async function generateAndStoreApprovedOrderPdf(
   const lines: OrderPdfLine[] = (items ?? []).map((row) => {
     const qty = Number(row.qty ?? 0);
     const lt = Number(row.line_total ?? 0);
+    const pid = String(row.product_id ?? "").toLowerCase();
     return {
       name: String(row.name ?? ""),
       qty: Number.isInteger(qty) ? String(qty) : qty.toFixed(2),
       uom: String(row.uom ?? ""),
       amount: lt > 0 ? formatKwacha(lt) : "",
-      isSub: false,
+      isSub: autoAddedIds.has(pid),
     };
   });
 
@@ -401,16 +473,22 @@ export async function generateAndStoreApprovedOrderPdf(
     order.employee_signature_path as string | null,
   );
 
-  const pdfBuffer = await renderOutletOrderPdf({
-    outletName: String(order.outlet_name),
-    outletId: String(order.outlet_id),
-    orderNumber: String(order.order_number),
-    placedAtLabel: `${placedAtLabel} (Kitwe)`,
-    employeeName: String(order.employee_name ?? "").trim() || "—",
-    grandTotalFormatted: grandFormatted,
-    lines,
-    signaturePng,
-  });
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await renderOutletOrderPdf({
+      outletName: String(order.outlet_name),
+      outletId: String(order.outlet_id),
+      orderNumber: String(order.order_number),
+      placedAtLabel: `${placedAtLabel} (Kitwe)`,
+      employeeName: String(order.employee_name ?? "").trim() || "—",
+      grandTotalFormatted: grandFormatted,
+      lines,
+      signaturePng,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "PDF render failed.";
+    return { ok: false, error: msg };
+  }
 
   const fileName = buildOrderPdfFileName(
     String(order.outlet_name),
@@ -422,17 +500,144 @@ export async function generateAndStoreApprovedOrderPdf(
 
   const { error: uploadErr } = await admin.storage
     .from("approved-orders")
-    .upload(storageKey, pdfBuffer, {
+    .upload(storageKey, new Uint8Array(pdfBuffer), {
       contentType: "application/pdf",
       upsert: true,
+      cacheControl: "3600",
     });
-  if (uploadErr) return { ok: false, error: uploadErr.message };
+  if (uploadErr) {
+    return {
+      ok: false,
+      error: `Storage upload failed: ${uploadErr.message}. Check approved-orders bucket.`,
+    };
+  }
 
   const { error: updateErr } = await admin
     .from("outlet_orders")
     .update({ approved_pdf_path: pdfPath, updated_at: new Date().toISOString() })
     .eq("id", orderId);
 
+  if (updateErr) return { ok: false, error: updateErr.message };
+
+  return { ok: true, pdfPath, fileName };
+}
+
+export async function generateAndStoreDriverHandoffPdf(
+  admin: SupabaseClient,
+  orderId: string,
+): Promise<{ ok: true; pdfPath: string; fileName: string } | { ok: false; error: string }> {
+  const { data: order, error: orderErr } = await admin
+    .from("outlet_orders")
+    .select(
+      "id, outlet_id, outlet_name, order_number, employee_name, driver_id, driver_signature_path, loaded_at, created_at, status, handoff_pdf_path",
+    )
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (orderErr) return { ok: false, error: orderErr.message };
+  if (!order) return { ok: false, error: "Order not found." };
+  if (order.status !== "loaded") {
+    return { ok: false, error: "Order is not loaded yet." };
+  }
+
+  const existingPath =
+    typeof order.handoff_pdf_path === "string" && order.handoff_pdf_path.trim()
+      ? order.handoff_pdf_path.trim()
+      : null;
+  if (existingPath) {
+    const existingKey = existingPath.replace(/^driver-handoffs\//, "");
+    const { data: existingFile, error: existingErr } = await admin.storage
+      .from("driver-handoffs")
+      .download(existingKey);
+    if (!existingErr && existingFile) {
+      const fileName = existingKey.split("/").pop() ?? "handoff.pdf";
+      return { ok: true, pdfPath: existingPath, fileName };
+    }
+  }
+
+  const { data: driver } = await admin
+    .from("delivery_drivers")
+    .select("name")
+    .eq("id", order.driver_id as string)
+    .maybeSingle();
+
+  const { data: items, error: itemsErr } = await admin
+    .from("outlet_order_items")
+    .select("product_id, name, qty, uom, sort_order")
+    .eq("order_id", orderId)
+    .order("sort_order", { ascending: true });
+  if (itemsErr) return { ok: false, error: itemsErr.message };
+
+  const autoAddedIds = await loadAutoAddedProductIds(admin);
+  const loadedLabel = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Lusaka",
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date((order.loaded_at as string) ?? (order.created_at as string)));
+
+  const lines: OrderPdfLine[] = (items ?? []).map((row) => {
+    const qty = Number(row.qty ?? 0);
+    const pid = String(row.product_id ?? "").toLowerCase();
+    return {
+      name: String(row.name ?? ""),
+      qty: Number.isInteger(qty) ? String(qty) : qty.toFixed(2),
+      uom: String(row.uom ?? ""),
+      amount: "",
+      isSub: autoAddedIds.has(pid),
+    };
+  });
+
+  const signaturePng = await loadDriverSignaturePng(
+    admin,
+    order.driver_signature_path as string | null,
+  );
+
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await renderOutletOrderPdf({
+      outletName: String(order.outlet_name),
+      outletId: String(order.outlet_id),
+      orderNumber: String(order.order_number),
+      placedAtLabel: `Loaded ${loadedLabel} (Kitwe)`,
+      employeeName: String(driver?.name ?? "Driver"),
+      grandTotalFormatted: "—",
+      lines,
+      signaturePng,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "PDF render failed.";
+    return { ok: false, error: msg };
+  }
+
+  const fileName = buildOrderPdfFileName(
+    String(order.outlet_name),
+    `${String(order.order_number)}_handoff`,
+    new Date((order.loaded_at as string) ?? (order.created_at as string)),
+  );
+  const storageKey = `${order.outlet_id}/${order.id}/${fileName}`;
+  const pdfPath = `driver-handoffs/${storageKey}`;
+
+  const { error: uploadErr } = await admin.storage
+    .from("driver-handoffs")
+    .upload(storageKey, new Uint8Array(pdfBuffer), {
+      contentType: "application/pdf",
+      upsert: true,
+      cacheControl: "3600",
+    });
+  if (uploadErr) {
+    return { ok: false, error: `Storage upload failed: ${uploadErr.message}.` };
+  }
+
+  const { error: updateErr } = await admin
+    .from("outlet_orders")
+    .update({ handoff_pdf_path: pdfPath, updated_at: new Date().toISOString() })
+    .eq("id", orderId);
   if (updateErr) return { ok: false, error: updateErr.message };
 
   return { ok: true, pdfPath, fileName };
