@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 
 /**
  * Mobile OAuth return URL for the Supervisor Expo app.
- * Supabase redirects here after Google sign-in; this page forwards tokens/code
- * to afterten-supervisor:// so the in-app browser can close and the app gets a session.
+ * Supabase redirects here after Google sign-in. Expo WebBrowser on Android often
+ * cannot read URL hash fragments — rewrite hash to query so openAuthSessionAsync
+ * receives tokens/code and closes back to the app (works in Expo Go and dev builds).
  */
 export async function GET() {
   const html = `<!DOCTYPE html>
@@ -18,16 +19,22 @@ export async function GET() {
   </style>
 </head>
 <body>
-  <p><strong>Returning to Afterten Supervisor…</strong></p>
-  <p id="fallback" hidden>If the app does not open, close this window and tap Continue with Google again in the Supervisor app.</p>
+  <p><strong>Finishing sign-in…</strong></p>
+  <p id="fallback" hidden>Tap the <strong>close (×)</strong> button above to return to the Supervisor app.</p>
   <script>
     (function () {
-      var appUrl = "afterten-supervisor://auth/callback" + (location.search || "") + (location.hash || "");
-      location.replace(appUrl);
+      var hash = location.hash;
+      if (hash && hash.length > 1) {
+        var merged =
+          location.pathname +
+          (location.search ? location.search + "&" + hash.slice(1) : "?" + hash.slice(1));
+        location.replace(merged);
+        return;
+      }
       setTimeout(function () {
         var el = document.getElementById("fallback");
         if (el) el.hidden = false;
-      }, 3000);
+      }, 2500);
     })();
   </script>
 </body>

@@ -17,6 +17,7 @@ export function createSupabaseClient() {
   return createClient(url, anonKey, {
     auth: {
       storage: AsyncStorage,
+      flowType: "pkce",
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,

@@ -6,7 +6,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 const DEFAULT_PORTAL_URL = "https://aftertentransfers.app";
 
-/** HTTPS redirect registered in Supabase; forwards to the app custom scheme. */
+/** HTTPS redirect registered in Supabase; Expo WebBrowser completes on this URL. */
 export function getSupervisorOAuthRedirectUri(): string {
   const portal = (process.env.EXPO_PUBLIC_PORTAL_URL?.trim() || DEFAULT_PORTAL_URL).replace(/\/$/, "");
   return `${portal}/auth/supervisor-callback`;

@@ -43,7 +43,7 @@ https://aftertentransfers.app/auth/supervisor-callback
 
 (Use your portal host if different; must match \`EXPO_PUBLIC_PORTAL_URL\` in \`.env\`.)
 
-That page forwards OAuth back to the app — **do not** sign in on the website; use **Continue with Google** in this app only.
+That page completes OAuth in the in-app browser (no custom URL scheme required for Expo Go). Use **Continue with Google** in this app only—not the portal website.
 
 ## Icon preview
 
