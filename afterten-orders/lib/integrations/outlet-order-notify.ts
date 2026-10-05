@@ -4,6 +4,7 @@
 export type OrderWhatsAppLineKind = "product" | "variant" | "auto";
 
 export type OrderWhatsAppLine = {
+  product_id: string;
   kind: OrderWhatsAppLineKind;
   productName: string;
   variantName: string | null;
@@ -11,27 +12,58 @@ export type OrderWhatsAppLine = {
   uom: string | null;
 };
 
+const SECTION_RULE = "────────────────";
+
 function formatQty(qty: number): string {
   return Number.isInteger(qty) || qty % 1 === 0 ? String(Math.round(qty)) : String(qty);
 }
 
+function formatUomLabel(uom: string | null): string {
+  const raw = (uom ?? "").trim() || "Unit";
+  if (/\(s\)$/i.test(raw)) return raw;
+  return `${raw}(s)`;
+}
+
+function lineDisplayName(line: OrderWhatsAppLine): string {
+  return line.productName;
+}
+
+/** Plain manual product: `1 Case(s) — Mango Juice`. Variant/auto: `• 4 Tray(s) — …` */
+function formatSingleWhatsAppLine(line: OrderWhatsAppLine): string {
+  const qty = formatQty(line.qty);
+  const uom = formatUomLabel(line.uom);
+  const text = `${qty} ${uom} — ${lineDisplayName(line)}`;
+  if (line.kind === "product") return text;
+  return `• ${text}`;
+}
+
 function formatItemBulletLines(lines: OrderWhatsAppLine[]): string[] {
-  if (lines.length === 0) return ["📭 (no lines)"];
-  return lines.map((line) => {
-    const uom = line.uom?.trim() ? ` ${line.uom.trim()}` : "";
-    const qty = formatQty(line.qty);
+  if (lines.length === 0) return ["(no lines)"];
+  return lines.map(formatSingleWhatsAppLine);
+}
 
-    if (line.kind === "product") {
-      return `📦 ${line.productName} x ${qty}${uom}`;
-    }
+function countWhatsAppLineItems(lines: OrderWhatsAppLine[]): number {
+  return lines.length;
+}
 
-    const variantPart = line.variantName?.trim() ? ` *${line.variantName.trim()}*` : "";
-    if (line.kind === "variant") {
-      return `- 📦 *${line.productName}* x ${qty}${variantPart}${uom}`;
-    }
-
-    return `- 📦 *${line.productName}* x ${qty}${variantPart}${uom}`;
-  });
+/** Shared stock-transfer layout for accept + dispatch WhatsApp alerts. */
+function buildOrderWhatsAppMessage(input: {
+  headline: string;
+  detailLines: string[];
+  lines: OrderWhatsAppLine[];
+}): string {
+  const itemLines = formatItemBulletLines(input.lines);
+  return [
+    input.headline,
+    "",
+    ...input.detailLines,
+    "",
+    SECTION_RULE,
+    ...itemLines,
+    SECTION_RULE,
+    "",
+    `📦 ${countWhatsAppLineItems(input.lines)} item${input.lines.length === 1 ? "" : "s"}`,
+  ].join("\n");
 }
 
 /** Sent when a supervisor accepts an outlet order (not at placement). */
@@ -47,19 +79,17 @@ export type SupervisorAcceptedWhatsAppPayload = {
 };
 
 export function formatSupervisorAcceptedWhatsAppMessage(p: SupervisorAcceptedWhatsAppPayload): string {
-  const body = [
-    "✅ *Order accepted*",
-    "",
-    `📋 *Order:* ${p.orderNumber}`,
-    `🏪 *Outlet:* ${p.outletName}`,
-    `👤 *Placed by:* ${p.employeeName}`,
-    `💰 *Total:* ${p.grandTotalFormatted}`,
-    `🕐 *Accepted:* ${p.acceptedAtKitwe} (Kitwe)`,
-    "",
-    "🛍️ *Items:*",
-    ...formatItemBulletLines(p.lines),
-  ];
-  return body.join("\n");
+  return buildOrderWhatsAppMessage({
+    headline: "✅ *Order accepted*",
+    detailLines: [
+      `📋 *Order:* ${p.orderNumber}`,
+      `🏪 *Outlet:* ${p.outletName}`,
+      `👤 *Placed by:* ${p.employeeName}`,
+      `💰 *Total:* ${p.grandTotalFormatted}`,
+      `🕒 *Accepted:* ${p.acceptedAtKitwe}`,
+    ],
+    lines: p.lines,
+  });
 }
 
 /** @deprecated Use formatSupervisorAcceptedWhatsAppMessage — WhatsApp no longer sent on placement. */
@@ -95,24 +125,26 @@ export type DriverLoadedWhatsAppPayload = {
   orderId: string;
   outletName: string;
   outletId: string;
+  employeeName: string;
+  grandTotalFormatted: string;
   driverName: string;
   loadedAtKitwe: string;
   lines: DriverLoadedWhatsAppLine[];
 };
 
 export function formatDriverLoadedWhatsAppMessage(p: DriverLoadedWhatsAppPayload): string {
-  const body = [
-    "🚚 *Order dispatched*",
-    "",
-    `📋 *Order:* ${p.orderNumber}`,
-    `🏪 *Outlet:* ${p.outletName}`,
-    `👨‍✈️ *Driver:* ${p.driverName}`,
-    `🕐 *Dispatched:* ${p.loadedAtKitwe} (Kitwe)`,
-    "",
-    "🛍️ *Items:*",
-    ...formatItemBulletLines(p.lines),
-  ];
-  return body.join("\n");
+  return buildOrderWhatsAppMessage({
+    headline: "🚚 *Order dispatched*",
+    detailLines: [
+      `📋 *Order:* ${p.orderNumber}`,
+      `🏪 *Outlet:* ${p.outletName}`,
+      `👤 *Placed by:* ${p.employeeName}`,
+      `💰 *Total:* ${p.grandTotalFormatted}`,
+      `👨‍✈️ *Driver:* ${p.driverName}`,
+      `🕒 *Dispatched:* ${p.loadedAtKitwe}`,
+    ],
+    lines: p.lines,
+  });
 }
 
 export function whatsAppSkipReason(env: {

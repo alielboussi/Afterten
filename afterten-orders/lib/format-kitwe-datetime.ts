@@ -22,3 +22,18 @@ export function formatKitweDatetime(iso: string): string {
     hour12: false,
   }).format(date);
 }
+
+/** Stock-transfer style: `5 Oct 2026, 09:08` in Kitwe (Africa/Lusaka). */
+export function formatKitweDatetimeCompact(iso: string): string {
+  const date = parseTimestamptz(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: KITWE_TZ,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}

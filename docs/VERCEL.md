@@ -15,6 +15,8 @@
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server only — **Portal admins** page; not `NEXT_PUBLIC_`)
+- `CRON_SECRET` — required for [daily pick WhatsApp cron](../docs/DAILY-PICK-WHATSAPP.md) (05:30 Kitwe)
+- `ORDER_NOTIFY_WEBHOOK_SECRET`, `WASENDER_API_KEY`, `WHATSAPP_ORDERS_GROUP_JID` — order WhatsApp alerts (see `supervisor-mobile/PUSH_AND_EAS.md`)
 
 See **[docs/PORTAL-GOOGLE-AUTH.md](../docs/PORTAL-GOOGLE-AUTH.md)** for Google OAuth setup.
 

@@ -42,7 +42,7 @@ async function loadOrderRules(admin: SupabaseClient): Promise<OrderRuleRow[]> {
   }
   const { data: additions } = await admin
     .from("product_order_rule_additions")
-    .select("rule_id, added_product_id, qty_per_trigger_unit")
+    .select("rule_id, added_product_id, qty_per_trigger_unit, sort_order")
     .in(
       "rule_id",
       rules.map((r) => r.id),
@@ -55,6 +55,7 @@ async function loadOrderRules(admin: SupabaseClient): Promise<OrderRuleRow[]> {
       trigger_product_id: trigger,
       added_product_id: String(a.added_product_id).toLowerCase(),
       qty_per_trigger_unit: Number(a.qty_per_trigger_unit),
+      addition_sort_order: Number(a.sort_order ?? 0),
     });
   }
   return out;
@@ -188,6 +189,7 @@ async function resolveRow(
 
 function toWhatsAppLine(row: ResolvedRow): OrderWhatsAppLine {
   return {
+    product_id: row.product_id,
     kind: row.kind,
     productName: row.productName,
     variantName: row.variantName,
@@ -244,8 +246,9 @@ export async function loadOrderWhatsAppLines(
     resolvedByProductId.set(pidKey, resolved);
   }
 
-  const manualItems = items.filter((r) => !autoIds.has(String(r.product_id).trim().toLowerCase()));
-  const autoItems = items.filter((r) => autoIds.has(String(r.product_id).trim().toLowerCase()));
+  const manualItems = items
+    .filter((r) => !autoIds.has(String(r.product_id).trim().toLowerCase()))
+    .sort((a, b) => a.sort_order - b.sort_order);
   const assignedAuto = new Set<string>();
   const ordered: OrderWhatsAppLine[] = [];
 
@@ -256,21 +259,26 @@ export async function loadOrderWhatsAppLines(
 
     const parent = resolved?.parent_product_id ?? pidKey;
     const triggerKeys = new Set([pidKey, parent].filter(Boolean));
-    const addedProductIds = new Set(
-      rules.filter((r) => triggerKeys.has(r.trigger_product_id)).map((r) => r.added_product_id),
-    );
+    const rulesForManual = rules
+      .filter((r) => triggerKeys.has(r.trigger_product_id))
+      .sort(
+        (a, b) =>
+          a.addition_sort_order - b.addition_sort_order ||
+          a.added_product_id.localeCompare(b.added_product_id),
+      );
 
-    for (const auto of [...autoItems].sort((a, b) => a.sort_order - b.sort_order)) {
-      const autoKey = String(auto.product_id).trim().toLowerCase();
+    for (const rule of rulesForManual) {
+      const autoKey = rule.added_product_id;
       if (assignedAuto.has(autoKey)) continue;
-      if (!addedProductIds.has(autoKey)) continue;
-      assignedAuto.add(autoKey);
       const autoResolved = resolvedByProductId.get(autoKey);
-      if (autoResolved) ordered.push(toWhatsAppLine(autoResolved));
+      if (!autoResolved) continue;
+      assignedAuto.add(autoKey);
+      ordered.push(toWhatsAppLine(autoResolved));
     }
   }
 
-  for (const auto of autoItems) {
+  const autoItems = items.filter((r) => autoIds.has(String(r.product_id).trim().toLowerCase()));
+  for (const auto of autoItems.sort((a, b) => a.sort_order - b.sort_order)) {
     const autoKey = String(auto.product_id).trim().toLowerCase();
     if (assignedAuto.has(autoKey)) continue;
     const autoResolved = resolvedByProductId.get(autoKey);

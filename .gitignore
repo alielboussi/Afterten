@@ -23,6 +23,7 @@ secrets/
 **/service-account*.json
 secrets/supabase.env
 Bearer Key.txt
+CRON_SECRET.txt
 
 # OS / IDE
 .DS_Store

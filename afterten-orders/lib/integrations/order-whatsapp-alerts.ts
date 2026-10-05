@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatKitweDatetime } from "@/lib/format-kitwe-datetime";
+import { formatKitweDatetimeCompact } from "@/lib/format-kitwe-datetime";
 import { loadOrderWhatsAppLines } from "@/lib/integrations/order-whatsapp-lines";
 import {
   formatDriverLoadedWhatsAppMessage,
@@ -10,7 +10,11 @@ import {
   whatsAppSkipReason,
 } from "@/lib/integrations/outlet-order-notify";
 
-export { formatKitweDatetime, parseTimestamptz } from "@/lib/format-kitwe-datetime";
+export {
+  formatKitweDatetime,
+  formatKitweDatetimeCompact,
+  parseTimestamptz,
+} from "@/lib/format-kitwe-datetime";
 
 function formatKwacha(amount: number): string {
   const safe = Number.isFinite(amount) ? amount : 0;
@@ -46,7 +50,7 @@ export async function sendSupervisorAcceptedOrderWhatsApp(
     outletId: order.outlet_id,
     employeeName: order.employee_name?.trim() || "—",
     grandTotalFormatted: formatKwacha(Number(order.grand_total)),
-    acceptedAtKitwe: formatKitweDatetime(acceptedAt),
+    acceptedAtKitwe: formatKitweDatetimeCompact(acceptedAt),
     lines,
   });
 
@@ -71,7 +75,7 @@ export async function sendDriverDispatchedOrderWhatsApp(
   const { data: order, error: orderErr } = await admin
     .from("outlet_orders")
     .select(
-      "id, order_number, outlet_id, outlet_name, loaded_at, status, driver_id, delivery_drivers(name)",
+      "id, order_number, outlet_id, outlet_name, employee_name, grand_total, loaded_at, status, driver_id, delivery_drivers(name)",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -93,8 +97,10 @@ export async function sendDriverDispatchedOrderWhatsApp(
     orderId: order.id,
     outletName: order.outlet_name,
     outletId: order.outlet_id,
+    employeeName: order.employee_name?.trim() || "—",
+    grandTotalFormatted: formatKwacha(Number(order.grand_total)),
     driverName,
-    loadedAtKitwe: formatKitweDatetime(loadedAt),
+    loadedAtKitwe: formatKitweDatetimeCompact(loadedAt),
     lines,
   });
 

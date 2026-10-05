@@ -4,6 +4,8 @@ export type OrderRuleRow = {
   trigger_product_id: string;
   added_product_id: string;
   qty_per_trigger_unit: number;
+  /** Addition row sort (stable auto line order under a trigger). */
+  addition_sort_order: number;
 };
 
 export type ManualOrderLine = {

@@ -26,7 +26,7 @@ async function loadOrderRules(admin: SupabaseClient): Promise<OrderRuleRow[]> {
   if (!rules?.length) return [];
   const { data: additions } = await admin
     .from("product_order_rule_additions")
-    .select("rule_id, added_product_id, qty_per_trigger_unit")
+    .select("rule_id, added_product_id, qty_per_trigger_unit, sort_order")
     .in(
       "rule_id",
       rules.map((r) => r.id),
@@ -47,6 +47,7 @@ async function loadOrderRules(admin: SupabaseClient): Promise<OrderRuleRow[]> {
       trigger_product_id: trigger,
       added_product_id: String(a.added_product_id).toLowerCase(),
       qty_per_trigger_unit: Number(a.qty_per_trigger_unit),
+      addition_sort_order: Number(a.sort_order ?? 0),
     });
   }
   return out;
