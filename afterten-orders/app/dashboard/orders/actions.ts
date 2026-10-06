@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { createClient } from "@/lib/supabase/server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 import { purgeAllOrderRelatedStorage } from "@/lib/portal/purge-order-storage";
 import {
   sendDriverDispatchedOrderWhatsApp,
@@ -50,6 +51,13 @@ export async function purgeAllOutletOrdersFromPortal(confirmation: string) {
 
   revalidatePath("/dashboard/orders");
 
+  await logPortalAudit({
+    pagePath: "/dashboard/orders",
+    actionKind: "delete",
+    actionText: `Deleted all outlet orders (${deletedOrders} order(s)); reset order numbering to 1.`,
+    metadata: { deletedOrders, removedStorageObjects: storage.removedObjects },
+  });
+
   return {
     ok: true as const,
     deletedOrders,
@@ -76,6 +84,12 @@ export async function sendDailyPickSummaryFromPortal() {
   if (!result.ok) {
     return { ok: false as const, error: result.error, skipped: result.skipped };
   }
+
+  await logPortalAudit({
+    pagePath: "/dashboard/orders",
+    actionKind: "send",
+    actionText: `Sent daily pick WhatsApp summary (${result.summary.orderCount} order(s)).`,
+  });
 
   return {
     ok: true as const,
@@ -114,5 +128,11 @@ export async function sendOrderWhatsAppFromPortal(
   }
 
   revalidatePath("/dashboard/orders");
+  await logPortalAudit({
+    pagePath: "/dashboard/orders",
+    actionKind: "send",
+    actionText: `Resent order WhatsApp (${alert}) for order ${trimmed}.`,
+    metadata: { orderId: trimmed, alert },
+  });
   return { ok: true as const, preview: result.preview };
 }

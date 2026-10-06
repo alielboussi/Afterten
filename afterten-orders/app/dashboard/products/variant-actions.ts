@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 import { normalizeProductUuid } from "@/lib/portal/product-id";
 import { PRODUCTS_LIST_TAG } from "@/lib/portal/products-cache";
 import {
@@ -88,6 +89,12 @@ export async function reorderProductVariants(parentProductId: string, orderedRow
   }
 
   revalidateTag(PRODUCTS_LIST_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/products",
+    actionKind: "edit",
+    actionText: `Reordered variants for product ${productId}.`,
+    metadata: { productId },
+  });
   return { ok: true as const };
 }
 
@@ -178,12 +185,24 @@ export async function saveProductVariant(parentProductId: string, input: Product
       .eq("product_id", productId);
 
     revalidateTag(PRODUCTS_LIST_TAG);
+    await logPortalAudit({
+      pagePath: "/dashboard/products",
+      actionKind: "add",
+      actionText: `Added variant "${name}" (${variantId}) for product ${productId}.`,
+      metadata: { productId, variantId },
+    });
     return { ok: true as const, id: inserted.id as string };
   }
 
   await admin.from("products").update({ has_variants: true, updated_at: new Date().toISOString() }).eq("product_id", productId);
 
   revalidateTag(PRODUCTS_LIST_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/products",
+    actionKind: "edit",
+    actionText: `Updated variant "${name}" (${variantId}) for product ${productId}.`,
+    metadata: { productId, variantId, variantRowId: input.id },
+  });
   return { ok: true as const, id: input.id };
 }
 
@@ -208,6 +227,12 @@ export async function deleteProductVariant(variantRowId: string, parentProductId
   }
 
   revalidateTag(PRODUCTS_LIST_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/products",
+    actionKind: "delete",
+    actionText: `Deleted variant row ${variantRowId} for product ${productId}.`,
+    metadata: { productId, variantRowId },
+  });
   return { ok: true as const };
 }
 
@@ -242,6 +267,12 @@ export async function setProductHasVariants(productDbId: string, parentProductId
   revalidatePath("/dashboard/products");
   revalidateTag(PRODUCTS_LIST_TAG);
   revalidateTag(`product-${productDbId}`);
+  await logPortalAudit({
+    pagePath: `/dashboard/products/${productDbId}/edit`,
+    actionKind: "edit",
+    actionText: `${enabled ? "Enabled" : "Disabled"} variants for product ${pid}.`,
+    metadata: { productDbId, productId: pid },
+  });
   return { ok: true as const };
 }
 
@@ -299,7 +330,12 @@ export async function uploadVariantImage(
 
   if (updateError) return { ok: false as const, error: updateError.message };
 
-  // Client components update previews locally; avoid revalidatePath (causes removeChild crashes in open UI).
+  await logPortalAudit({
+    pagePath: "/dashboard/products",
+    actionKind: "edit",
+    actionText: `Uploaded variant image for ${vid}.`,
+    metadata: { variantRowId, variantId: vid, productId: parentId },
+  });
   return { ok: true as const, imageUrl };
 }
 
@@ -316,5 +352,11 @@ export async function clearVariantImage(variantRowId: string) {
     .eq("id", variantRowId);
 
   if (error) return { ok: false as const, error: error.message };
+  await logPortalAudit({
+    pagePath: "/dashboard/products",
+    actionKind: "delete",
+    actionText: `Cleared variant image for row ${variantRowId}.`,
+    metadata: { variantRowId },
+  });
   return { ok: true as const };
 }

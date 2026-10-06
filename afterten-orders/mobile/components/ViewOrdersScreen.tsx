@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -156,7 +156,7 @@ function OutletOrderCard({
   item: OutletAcceptedOrderRow;
   onOpen: () => void;
 }) {
-  const pulse = useRef(new Animated.Value(1)).current;
+  const pulse = useMemo(() => new Animated.Value(1), []);
   const isLoaded = item.status === "loaded";
 
   useEffect(() => {

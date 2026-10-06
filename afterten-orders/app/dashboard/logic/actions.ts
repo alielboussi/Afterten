@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 import { normalizeProductUuid } from "@/lib/portal/product-id";
 import { ORDER_LOGIC_RULES_TAG } from "@/lib/portal/order-logic-cache";
 import { PRODUCTS_LIST_TAG } from "@/lib/portal/products-cache";
@@ -52,6 +53,12 @@ export async function createOrderLogicRule(input: OrderLogicRuleInput) {
   }
 
   revalidateLogic();
+  await logPortalAudit({
+    pagePath: "/dashboard/logic",
+    actionKind: "add",
+    actionText: `Created order logic rule "${parsed.name}" (${ruleId}).`,
+    metadata: { ruleId },
+  });
   return { ok: true as const, id: ruleId };
 }
 
@@ -83,6 +90,12 @@ export async function updateOrderLogicRule(id: string, input: OrderLogicRuleInpu
   if (!addResult.ok) return addResult;
 
   revalidateLogic(id);
+  await logPortalAudit({
+    pagePath: "/dashboard/logic",
+    actionKind: "edit",
+    actionText: `Updated order logic rule "${parsed.name}" (${id}).`,
+    metadata: { ruleId: id },
+  });
   return { ok: true as const };
 }
 
@@ -97,6 +110,12 @@ export async function deleteOrderLogicRule(id: string) {
   if (error) return { ok: false as const, error: error.message };
 
   revalidateLogic(id);
+  await logPortalAudit({
+    pagePath: "/dashboard/logic",
+    actionKind: "delete",
+    actionText: `Deleted order logic rule ${id}.`,
+    metadata: { ruleId: id },
+  });
   return { ok: true as const };
 }
 
@@ -207,5 +226,11 @@ export async function updateProductOrderQtyLimits(productId: string, input: Prod
   revalidatePath("/dashboard/logic");
   revalidatePath("/dashboard/products");
   revalidateTag(PRODUCTS_LIST_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/logic",
+    actionKind: "edit",
+    actionText: `Updated order qty limits for product ${pid}.`,
+    metadata: { productId: pid },
+  });
   return { ok: true as const };
 }

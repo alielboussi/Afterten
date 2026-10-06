@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 
 export async function setSupervisorAlias(userId: string, alias: string) {
   const gate = await assertCallerIsPortalAdmin();
@@ -32,6 +33,14 @@ export async function setSupervisorAlias(userId: string, alias: string) {
 
   revalidatePath("/dashboard/supervisors");
   revalidateTag("supervisors-list");
+  await logPortalAudit({
+    pagePath: "/dashboard/supervisors",
+    actionKind: "edit",
+    actionText: trimmed
+      ? `Set supervisor alias for ${userId} to "${trimmed}".`
+      : `Cleared supervisor alias for ${userId}.`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }
 
@@ -79,6 +88,12 @@ export async function approveSupervisor(userId: string) {
 
   revalidatePath("/dashboard/supervisors");
   revalidateTag("supervisors-list");
+  await logPortalAudit({
+    pagePath: "/dashboard/supervisors",
+    actionKind: "edit",
+    actionText: `Approved supervisor ${userId} (alias "${alias}").`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }
 
@@ -103,5 +118,11 @@ export async function revokeSupervisorApproval(userId: string) {
 
   revalidatePath("/dashboard/supervisors");
   revalidateTag("supervisors-list");
+  await logPortalAudit({
+    pagePath: "/dashboard/supervisors",
+    actionKind: "edit",
+    actionText: `Revoked supervisor approval for ${userId}.`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }

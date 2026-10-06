@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Pressable,
   StyleSheet,
@@ -22,6 +23,7 @@ import {
 } from "./lib/supervisor-oauth-urls";
 import { signInWithGoogle } from "./lib/google-auth";
 import { subscribeToNewOutletOrders } from "./lib/order-realtime";
+import { registerSupervisorPushNotifications } from "./lib/supervisor-push";
 import { DeliveryLoadingChecklistScreen } from "./components/DeliveryLoadingChecklistScreen";
 import { DeliveryDriverHandoffScreen } from "./components/DeliveryDriverHandoffScreen";
 import { OrdersScreen } from "./components/OrdersScreen";
@@ -65,6 +67,18 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
     setActionToast("Order accepted.");
   }, []);
 
+  const registerPushIfApproved = useCallback(
+    (p: SupervisorProfile | null) => {
+      if (!supabase || !p?.approved) return;
+      void registerSupervisorPushNotifications(supabase).then((r) => {
+        if (!r.ok && r.reason.includes("permission")) {
+          setActionToast("Enable notifications to get new order alerts when the app is closed.");
+        }
+      });
+    },
+    [supabase],
+  );
+
   const bootstrap = useCallback(async () => {
     if (!supabase) {
       setScreen("login");
@@ -84,11 +98,20 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
     }
     setProfile(p);
     setScreen(p.approved ? "home" : "pending");
-  }, [supabase]);
+    registerPushIfApproved(p);
+  }, [supabase, registerPushIfApproved]);
 
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    if (!supabase || !profile?.approved) return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") registerPushIfApproved(profile);
+    });
+    return () => sub.remove();
+  }, [supabase, profile, registerPushIfApproved]);
 
   useEffect(() => {
     if (!supabase || !profile?.approved) return;
@@ -113,6 +136,7 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
     }
     setProfile(p);
     setScreen(p.approved ? "home" : "pending");
+    registerPushIfApproved(p);
   }
 
   async function onSignOut() {

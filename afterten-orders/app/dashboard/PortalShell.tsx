@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { PortalSidebar } from "./PortalSidebar";
+import { PortalPageAuditTracker } from "./PortalPageAuditTracker";
 import { useDisableNumberInputWheel } from "./useDisableNumberInputWheel";
 
 const STORAGE_KEY = "afterten-portal-sidebar-open";
 
 type Props = {
   welcomeName: string;
+  showHistory: boolean;
   children: React.ReactNode;
 };
 
-export function PortalShell({ welcomeName, children }: Props) {
+export function PortalShell({ welcomeName, showHistory, children }: Props) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarReady, setSidebarReady] = useState(false);
 
@@ -56,7 +58,7 @@ export function PortalShell({ welcomeName, children }: Props) {
         <div className="at-portal-bodyFrame">
           <div className="at-portal-sidebarRail">
             <aside className="at-portal-sidebar" aria-hidden={!sidebarOpen}>
-              <PortalSidebar />
+              <PortalSidebar showHistory={showHistory} />
               <form action="/auth/signout" method="post" className="at-portal-signOutWrap">
                 <button type="submit" className="at-portal-signOutPill">
                   Sign out
@@ -78,6 +80,7 @@ export function PortalShell({ welcomeName, children }: Props) {
             </button>
           </div>
           <main className="at-portal-main">
+            <PortalPageAuditTracker />
             <div className="at-portal-mainInner">{children}</div>
           </main>
         </div>

@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { getUncategorizedUsers } from "@/lib/portal/uncategorized-users";
 import { NewUserTriagePanel } from "./NewUserTriagePanel";
+import { LiveQtyStockAlerts } from "./LiveQtyStockAlerts";
 
 export const dynamic = "force-dynamic";
 
@@ -16,17 +16,8 @@ export default async function DashboardHomePage() {
     <>
       <NewUserTriagePanel users={uncategorized} />
       <div className="at-page-shell">
+        <LiveQtyStockAlerts />
         <h1 className="at-page-title">Dashboard</h1>
-        <p className="at-page-lead">
-          New Google sign-ins are assigned on this page (portal admin, supervisor, or outlet).{" "}
-          <strong>Portal Admins</strong> lists dashboard access only.{" "}
-          <strong>Supervisors</strong> lists the supervisor app.{" "}
-          <strong>Outlet Users</strong> lists Expo Orders app accounts.{" "}
-          <strong>
-            <Link href="/dashboard/orders">Orders</Link>
-          </strong>{" "}
-          shows all outlet orders, status, PDFs, and WhatsApp actions.
-        </p>
       </div>
     </>
   );

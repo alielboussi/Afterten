@@ -14,6 +14,7 @@
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
+      "package": "com.afterten.orders",
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -29,6 +30,12 @@
           "color": "#c41e3a"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9a668d95-4c98-41a3-a97c-33081bbb61f7"
+      }
+    },
+    "owner": "afterten-and-bestrest"
   }
 }

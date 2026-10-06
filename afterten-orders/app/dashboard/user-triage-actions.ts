@@ -3,6 +3,7 @@
 import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 import { grantPortalAdmin } from "@/app/dashboard/admins/actions";
 import { UNCATEGORIZED_USERS_TAG } from "@/lib/portal/uncategorized-users";
 
@@ -21,6 +22,12 @@ export async function triageAssignPortalAdmin(userId: string, email: string) {
   await admin.from("supervisor_profiles").delete().eq("user_id", userId);
 
   revalidateTriageTags();
+  await logPortalAudit({
+    pagePath: "/dashboard",
+    actionKind: "add",
+    actionText: `Triage: granted portal admin to ${email}.`,
+    metadata: { userId, email },
+  });
   return { ok: true as const };
 }
 
@@ -51,6 +58,12 @@ export async function triageAssignSupervisor(userId: string, email: string) {
   if (error) return { ok: false as const, error: error.message };
 
   revalidateTriageTags();
+  await logPortalAudit({
+    pagePath: "/dashboard",
+    actionKind: "add",
+    actionText: `Triage: assigned supervisor role to ${trimmedEmail}.`,
+    metadata: { userId, email: trimmedEmail },
+  });
   return { ok: true as const };
 }
 
@@ -64,5 +77,11 @@ export async function triageRemoveAuthUser(userId: string) {
   if (error) return { ok: false as const, error: error.message };
 
   revalidateTriageTags();
+  await logPortalAudit({
+    pagePath: "/dashboard",
+    actionKind: "delete",
+    actionText: `Triage: deleted auth user ${userId}.`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }

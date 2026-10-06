@@ -37,11 +37,12 @@ If **WhatsApp does not arrive** when a supervisor accepts an order:
 
 **WhatsApp timing:** (1) **Order accepted** → `/api/webhooks/supervisor-order-accepted` (not on outlet placement). (2) **Dispatched** → `/api/webhooks/driver-order-loaded` when the supervisor taps **Dispatch** after driver + signature.
 
-## New order alerts (in-app)
+## New order alerts
 
-While a supervisor is signed in and approved, the app listens to **Supabase Realtime** on `outlet_orders` inserts and shows an in-app **toast** (`lib/order-realtime.ts`, `components/ToastBanner.tsx`). No Expo push, EAS project, or device notification permission is required.
+- **Foreground:** Supabase Realtime toast while signed in (`lib/order-realtime.ts`).
+- **Background / app closed:** Expo push after an **EAS build** — see **[PUSH-NOTIFICATIONS-SETUP.md](../../docs/PUSH-NOTIFICATIONS-SETUP.md)** (FCM, `eas init`, `register_supervisor_push_token`).
 
-WhatsApp group alerts still come from the portal webhook. Optional background push via EAS/FCM can be added later without changing this Realtime path.
+WhatsApp group alerts still come from the portal webhook.
 
 ## Google sign-in
 

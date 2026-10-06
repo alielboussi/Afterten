@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 
 export async function addDeliveryDriver(name: string) {
   const gate = await assertCallerIsPortalAdmin();
@@ -21,6 +22,11 @@ export async function addDeliveryDriver(name: string) {
   if (error) return { ok: false as const, error: error.message };
 
   revalidatePath("/dashboard/drivers");
+  await logPortalAudit({
+    pagePath: "/dashboard/drivers",
+    actionKind: "add",
+    actionText: `Added delivery driver "${trimmed}".`,
+  });
   return { ok: true as const };
 }
 
@@ -37,5 +43,10 @@ export async function setDeliveryDriverActive(driverId: string, active: boolean)
   if (error) return { ok: false as const, error: error.message };
 
   revalidatePath("/dashboard/drivers");
+  await logPortalAudit({
+    pagePath: "/dashboard/drivers",
+    actionKind: "edit",
+    actionText: `${active ? "Activated" : "Deactivated"} delivery driver ${driverId}.`,
+  });
   return { ok: true as const };
 }

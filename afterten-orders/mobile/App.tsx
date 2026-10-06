@@ -193,6 +193,7 @@ function AppShell() {
     if (!supabase || screen !== "home") return;
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
+      void registerOutletPushNotifications(supabase);
       void flushOfflineCompleteQueue(supabase).then((r) => {
         if (r.processed > 0) {
           setSaveToast(`${r.processed} queued order(s) completed.`);
@@ -232,6 +233,7 @@ function AppShell() {
     setProducts([]);
     setBusy(false);
     setScreen("home");
+    void registerOutletPushNotifications(supabase);
   }
 
   async function onStartOrder() {

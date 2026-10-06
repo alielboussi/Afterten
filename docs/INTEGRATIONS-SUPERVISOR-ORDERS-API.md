@@ -10,6 +10,20 @@ Authorization: Bearer YOUR_SECRET
 
 **Local:** `Bearer Key.txt` at repo root (gitignored). **Production:** `SUPERVISOR_ACCEPTED_ORDERS_BEARER_KEY` on Vercel.
 
+## Live qty sync (inventory API)
+
+Push stock levels for inventory UUIDs (same IDs as product / variant UUIDs in the catalog):
+
+```http
+POST /api/integrations/product-live-qty
+Authorization: Bearer YOUR_SECRET
+Content-Type: application/json
+
+{ "items": [ { "product_id": "<inventory-uuid>", "qty": 12.5 } ] }
+```
+
+Same bearer as supervisor accepted orders. Dashboard home shows **out of stock** alerts for any SKU with **Live qty on** and qty ≤ 0.
+
 ## Request
 
 ```http

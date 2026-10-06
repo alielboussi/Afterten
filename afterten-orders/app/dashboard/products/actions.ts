@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 import { normalizeProductUuid } from "@/lib/portal/product-id";
 import { PRODUCTS_LIST_TAG } from "@/lib/portal/products-cache";
 import {
@@ -60,6 +61,45 @@ export async function getNextProductSortOrder() {
   const max = data?.sort_order;
   const next = typeof max === "number" && Number.isFinite(max) ? max + 1 : 0;
   return { ok: true as const, next };
+}
+
+/** Persists catalog sort_order as 1…n for master products list. */
+export async function reorderCatalogProducts(orderedDbIds: string[]) {
+  const gate = await assertCallerIsPortalAdmin();
+  if (!gate.ok) return gate;
+
+  if (orderedDbIds.length === 0) {
+    return { ok: false as const, error: "Nothing to reorder." };
+  }
+
+  const admin = createAdminClient();
+  const { data: existing, error: fetchErr } = await admin.from("products").select("id");
+
+  if (fetchErr) return { ok: false as const, error: fetchErr.message };
+
+  const validIds = new Set((existing ?? []).map((r) => r.id as string));
+  if (orderedDbIds.length !== validIds.size || orderedDbIds.some((id) => !validIds.has(id))) {
+    return { ok: false as const, error: "Product list changed — refresh the page and try again." };
+  }
+
+  const now = new Date().toISOString();
+  for (let index = 0; index < orderedDbIds.length; index++) {
+    const id = orderedDbIds[index];
+    const { error } = await admin
+      .from("products")
+      .update({ sort_order: index + 1, updated_at: now })
+      .eq("id", id);
+    if (error) return { ok: false as const, error: error.message };
+  }
+
+  revalidatePath("/dashboard/products");
+  revalidateTag(PRODUCTS_LIST_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/products",
+    actionKind: "edit",
+    actionText: `Reordered ${orderedDbIds.length} catalog product(s).`,
+  });
+  return { ok: true as const };
 }
 
 export async function createProduct(input: ProductInput) {
@@ -124,6 +164,12 @@ export async function createProduct(input: ProductInput) {
 
   revalidatePath("/dashboard/products");
   revalidateTag(PRODUCTS_LIST_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/products",
+    actionKind: "add",
+    actionText: `Created product "${name}" (${productId}).`,
+    metadata: { productId, dbId: data.id },
+  });
   return { ok: true as const, id: data.id as string, productId };
 }
 
@@ -198,6 +244,12 @@ export async function updateProduct(id: string, input: ProductInput) {
     })
     .eq("product_id", productId);
 
+  await logPortalAudit({
+    pagePath: `/dashboard/products/${id}/edit`,
+    actionKind: "edit",
+    actionText: `Updated product "${name}" (${productId}).`,
+    metadata: { productId, dbId: id },
+  });
   return { ok: true as const };
 }
 
@@ -221,6 +273,12 @@ export async function setProductLiveQtyGate(id: string, enabled: boolean) {
   revalidatePath("/dashboard/products");
   revalidateTag(PRODUCTS_LIST_TAG);
   revalidateTag(`product-${id}`);
+  await logPortalAudit({
+    pagePath: "/dashboard/products",
+    actionKind: "edit",
+    actionText: `${enabled ? "Enabled" : "Disabled"} live qty gate for product ${id}.`,
+    metadata: { productDbId: id },
+  });
   return { ok: true as const };
 }
 
@@ -280,7 +338,12 @@ export async function uploadProductImage(productDbId: string, formData: FormData
 
   if (updateError) return { ok: false as const, error: updateError.message };
 
-  // Client updates preview; skip path revalidation while user is on catalog/edit UI.
+  await logPortalAudit({
+    pagePath: `/dashboard/products/${productDbId}/edit`,
+    actionKind: "edit",
+    actionText: `Uploaded product image for ${product.product_id}.`,
+    metadata: { productDbId, productId: product.product_id },
+  });
   return { ok: true as const, imageUrl };
 }
 
@@ -297,5 +360,11 @@ export async function clearProductImage(productDbId: string) {
     .eq("id", productDbId);
 
   if (error) return { ok: false as const, error: error.message };
+  await logPortalAudit({
+    pagePath: `/dashboard/products/${productDbId}/edit`,
+    actionKind: "delete",
+    actionText: `Cleared product image for ${productDbId}.`,
+    metadata: { productDbId },
+  });
   return { ok: true as const };
 }

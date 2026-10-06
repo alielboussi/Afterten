@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 import { UNCATEGORIZED_USERS_TAG } from "@/lib/portal/uncategorized-users";
 
 export async function grantPortalAdmin(userId: string, email: string) {
@@ -38,6 +39,12 @@ export async function grantPortalAdmin(userId: string, email: string) {
   revalidateTag("portal-admins-list");
   revalidateTag("supervisors-list");
   revalidateTag(UNCATEGORIZED_USERS_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/admins",
+    actionKind: "add",
+    actionText: `Granted portal admin to ${trimmedEmail}.`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }
 
@@ -70,6 +77,12 @@ export async function revokePortalAdmin(userId: string) {
 
   revalidatePath("/dashboard/admins");
   revalidateTag("portal-admins-list");
+  await logPortalAudit({
+    pagePath: "/dashboard/admins",
+    actionKind: "edit",
+    actionText: `Revoked portal admin for user ${userId}.`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }
 
@@ -102,6 +115,14 @@ export async function setPortalUserAlias(userId: string, alias: string) {
   revalidatePath("/dashboard/admins");
   revalidateTag("portal-admins-list");
   revalidateTag(`welcome-${userId}`);
+  await logPortalAudit({
+    pagePath: "/dashboard/admins",
+    actionKind: "edit",
+    actionText: trimmed
+      ? `Set portal alias for ${userId} to "${trimmed}".`
+      : `Cleared portal alias for ${userId}.`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }
 
@@ -160,5 +181,11 @@ export async function deletePortalAuthUser(userId: string) {
   revalidatePath("/dashboard/outlet-users");
   revalidateTag("portal-admins-list");
   revalidateTag(UNCATEGORIZED_USERS_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/admins",
+    actionKind: "delete",
+    actionText: `Deleted auth user ${userId} and related portal rows.`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }

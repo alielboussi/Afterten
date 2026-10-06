@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 import { deriveOutletCredentials } from "@/lib/portal/outlet-identifiers";
 import { OUTLETS_LIST_TAG, OUTLET_USERS_LIST_TAG } from "@/lib/portal/outlet-data-cache";
 
@@ -129,6 +130,12 @@ export async function createOutletUser(input: CreateOutletUserInput) {
   revalidatePath("/dashboard/outlet-users/new");
   revalidateTag(OUTLET_USERS_LIST_TAG);
   revalidateTag(OUTLETS_LIST_TAG);
+  await logPortalAudit({
+    pagePath: "/dashboard/outlet-users/new",
+    actionKind: "add",
+    actionText: `Created outlet user ${email} for outlet ${outletId} (${outletName}).`,
+    metadata: { userId, outletId, email },
+  });
   return { ok: true as const, userId, outletId };
 }
 
@@ -249,6 +256,12 @@ export async function updateOutletUser(input: UpdateOutletUserInput) {
   revalidateTag(OUTLET_USERS_LIST_TAG);
   revalidateTag(OUTLETS_LIST_TAG);
   revalidateTag(`outlet-user-${userId}`);
+  await logPortalAudit({
+    pagePath: `/dashboard/outlet-users/${userId}/edit`,
+    actionKind: "edit",
+    actionText: `Updated outlet user ${email} (${outletId}).`,
+    metadata: { userId, outletId, email },
+  });
   return { ok: true as const };
 }
 
@@ -270,5 +283,11 @@ export async function setOutletUserActive(userId: string, active: boolean) {
   revalidatePath("/dashboard/outlet-users");
   revalidateTag(OUTLET_USERS_LIST_TAG);
   revalidateTag(`outlet-user-${userId}`);
+  await logPortalAudit({
+    pagePath: "/dashboard/outlet-users",
+    actionKind: "edit",
+    actionText: `${active ? "Activated" : "Deactivated"} outlet user ${userId}.`,
+    metadata: { userId },
+  });
   return { ok: true as const };
 }

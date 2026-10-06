@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { ProductRow } from "@/lib/portal/product-types";
+import { reorderCatalogProducts } from "./actions";
 import { LiveQtyGateToggle } from "./LiveQtyGateToggle";
 import { ProductImageUpload } from "./ProductImageUpload";
 import { listProductVariants } from "./variant-actions";
@@ -26,11 +27,32 @@ function formatPrice(value: number) {
   return new Intl.NumberFormat("en-ZM", { style: "currency", currency: "ZMW" }).format(value);
 }
 
-export function ProductsCatalogGrid({ products }: Props) {
+function reorderByDrag(list: ProductRow[], draggedId: string, targetId: string): ProductRow[] {
+  const from = list.findIndex((r) => r.id === draggedId);
+  const to = list.findIndex((r) => r.id === targetId);
+  if (from < 0 || to < 0 || from === to) return list;
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next.map((row, index) => ({ ...row, sortOrder: index + 1 }));
+}
+
+export function ProductsCatalogGrid({ products: initialProducts }: Props) {
+  const [products, setProducts] = useState(initialProducts);
   const [panelProductId, setPanelProductId] = useState<string | null>(null);
   const [variants, setVariants] = useState<VariantPreview[]>([]);
   const [panelLoading, setPanelLoading] = useState(false);
   const [panelError, setPanelError] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+  const orderAtDragStart = useRef<string[] | null>(null);
+  const productsRef = useRef(products);
+  productsRef.current = products;
+
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
 
   const panelProduct = products.find((p) => p.id === panelProductId) ?? null;
 
@@ -68,8 +90,49 @@ export function ProductsCatalogGrid({ products }: Props) {
     setPanelProductId((cur) => (cur === product.id ? null : product.id));
   }
 
+  function onProductDragStart(rowId: string) {
+    if (savingOrder) return;
+    orderAtDragStart.current = productsRef.current.map((r) => r.id);
+    setDraggingId(rowId);
+  }
+
+  function onProductDragOver(e: React.DragEvent, targetId: string) {
+    e.preventDefault();
+    if (!draggingId || savingOrder) return;
+    if (draggingId === targetId) return;
+    setProducts(reorderByDrag(productsRef.current, draggingId, targetId));
+  }
+
+  async function onProductDragEnd() {
+    const startOrder = orderAtDragStart.current;
+    orderAtDragStart.current = null;
+    setDraggingId(null);
+    if (!startOrder) return;
+
+    const newOrder = productsRef.current.map((r) => r.id);
+    if (startOrder.length === newOrder.length && startOrder.every((id, i) => id === newOrder[i])) {
+      return;
+    }
+
+    setSavingOrder(true);
+    setReorderError(null);
+    const result = await reorderCatalogProducts(newOrder);
+    setSavingOrder(false);
+
+    if (!result.ok) {
+      setReorderError(result.error);
+      setProducts(initialProducts);
+    }
+  }
+
   return (
     <>
+      <p className="at-productReorderHint">
+        Drag the <strong>⋮⋮</strong> handle to reorder how products appear in the outlet app.
+        {savingOrder ? " Saving order…" : null}
+      </p>
+      {reorderError ? <p className="at-page-msgErr">{reorderError}</p> : null}
+
       {panelProductId ? (
         <button
           type="button"
@@ -79,14 +142,29 @@ export function ProductsCatalogGrid({ products }: Props) {
         />
       ) : null}
 
-      <ul className="at-productGrid">
+      <ul className="at-productGrid" aria-busy={savingOrder}>
         {products.map((p) => {
           const open = panelProductId === p.id;
+          const dragging = draggingId === p.id;
           return (
             <li
               key={p.id}
-              className={`at-productCard${open ? " at-productCard--panelOpen" : ""}`}
+              className={`at-productCard${open ? " at-productCard--panelOpen" : ""}${dragging ? " at-productCard--dragging" : ""}`}
+              onDragOver={(e) => onProductDragOver(e, p.id)}
+              onDrop={(e) => e.preventDefault()}
             >
+              <button
+                type="button"
+                className="at-productDragHandle"
+                draggable={!savingOrder}
+                disabled={savingOrder}
+                aria-label={`Drag to reorder ${p.name}`}
+                title="Drag to reorder"
+                onDragStart={() => onProductDragStart(p.id)}
+                onDragEnd={() => void onProductDragEnd()}
+              >
+                <span aria-hidden>⋮⋮</span>
+              </button>
               <div className="at-product-cardMedia">
                 <ProductImageUpload
                   productDbId={p.id}
@@ -111,6 +189,10 @@ export function ProductsCatalogGrid({ products }: Props) {
                   {p.productId}
                 </p>
                 <dl className="at-productCardMeta">
+                  <div className="at-productCardMetaRow">
+                    <dt>Sort</dt>
+                    <dd>{p.sortOrder}</dd>
+                  </div>
                   <div className="at-productCardMetaRow">
                     <dt>UOM</dt>
                     <dd>{p.uom}</dd>

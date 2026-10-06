@@ -16,8 +16,8 @@ export default async function ProductsPage() {
     <div className="at-page-shell-wide">
       <h1 className="at-page-title">Products</h1>
       <p className="at-page-lead">
-        Master catalog for the outlet app — UOM, image, and price. Live qty gates stay off until the
-        inventory API is connected.
+        Master catalog for the outlet app — UOM, image, and price. Drag <strong>⋮⋮</strong> on each
+        card to reorder. Live qty gates use stock synced from the inventory integration API.
       </p>
 
       {loadError && (

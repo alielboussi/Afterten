@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 import { assertCallerIsPortalAdmin } from "@/lib/portal/assert-portal-admin-action";
+import { logPortalAudit } from "@/lib/portal/portal-audit";
 import { OUTLET_PRODUCT_ALLOWLIST_TAG } from "@/lib/portal/outlet-product-allowlist-cache";
 import { OUTLETS_LIST_TAG } from "@/lib/portal/outlet-data-cache";
 
@@ -52,8 +53,15 @@ export async function saveOutletProductAllowlist(outletId: string, productIds: s
   revalidateTag(OUTLET_PRODUCT_ALLOWLIST_TAG);
   revalidateTag(OUTLETS_LIST_TAG);
   revalidateTag(`outlet-product-allowlist-${id}`);
+  const mode = showAll ? ("all" as const) : selected.length === 0 ? ("none" as const) : ("custom" as const);
+  await logPortalAudit({
+    pagePath: "/dashboard/outlet-users",
+    actionKind: "edit",
+    actionText: `Saved product allowlist for outlet ${id} (${mode}, ${selected.length} product(s)).`,
+    metadata: { outletId: id, mode, productCount: selected.length },
+  });
   return {
     ok: true as const,
-    mode: showAll ? ("all" as const) : selected.length === 0 ? ("none" as const) : ("custom" as const),
+    mode,
   };
 }

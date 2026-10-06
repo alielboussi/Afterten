@@ -13,7 +13,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function registerOutletPushNotifications(
+export async function registerSupervisorPushNotifications(
   supabase: SupabaseClient,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -29,7 +29,7 @@ export async function registerOutletPushNotifications(
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("orders", {
       name: "Orders",
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: Notifications.AndroidImportance.HIGH,
     });
   }
 
@@ -42,7 +42,7 @@ export async function registerOutletPushNotifications(
     return {
       ok: false,
       reason:
-        "Missing EAS projectId. Run eas init in mobile/ and rebuild (Expo Go cannot receive production push).",
+        "Missing EAS projectId. Run eas init in supervisor-mobile and rebuild the app (Expo Go cannot receive production push).",
     };
   }
 
@@ -55,7 +55,7 @@ export async function registerOutletPushNotifications(
     return { ok: false, reason: msg };
   }
 
-  const { error } = await supabase.rpc("register_outlet_push_token", {
+  const { error } = await supabase.rpc("register_supervisor_push_token", {
     p_expo_push_token: token,
     p_platform: Platform.OS,
   });
