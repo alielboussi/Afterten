@@ -44,7 +44,6 @@ export function DeliveryLoadingOrderCard({
         <Pressable
           style={styles.actionBtn}
           onPress={onChecklistPress}
-          disabled={loaded}
           accessibilityRole="button"
           accessibilityLabel="Loading checklist"
         >

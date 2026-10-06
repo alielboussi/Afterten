@@ -17,7 +17,6 @@ import {
   type DeliveryDriver,
 } from "../lib/delivery-loading";
 import { uploadDriverSignature } from "../lib/driver-signature-upload";
-import { downloadDriverHandoffPdf } from "../lib/driver-handoff-pdf";
 
 type Props = {
   supabase: SupabaseClient;
@@ -109,13 +108,8 @@ export function DeliveryDriverHandoffScreen({
       setError(handoff.error);
       return;
     }
-    const pdf = await downloadDriverHandoffPdf(supabase, orderId);
     setBusy(false);
-    onComplete(
-      pdf.ok
-        ? `Order dispatched. Handoff PDF: ${pdf.fileName}`
-        : `Order dispatched. PDF: ${pdf.error}`,
-    );
+    onComplete("Order dispatched.");
   }
 
   if (loading) {

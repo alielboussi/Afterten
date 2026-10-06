@@ -45,3 +45,35 @@ export async function uploadOutletSignature(
 
   return { dbPath };
 }
+
+export async function uploadOffloaderSignature(
+  supabase: SupabaseClient,
+  outletId: string,
+  orderId: string,
+  localImageUri: string,
+): Promise<{ dbPath: string } | { error: string }> {
+  const storageKey = `${outletId}/${orderId}/offloader.webp`;
+  const dbPath = `signatures/${storageKey}`;
+
+  let encodedUri: string;
+  try {
+    encodedUri = await encodeSignatureImage(localImageUri);
+  } catch {
+    return { error: "Could not process signature image." };
+  }
+
+  try {
+    const file = new File(encodedUri);
+    const { error } = await supabase.storage.from("signatures").upload(storageKey, file, {
+      contentType: "image/webp",
+      upsert: true,
+    });
+    if (error) {
+      return { error: error.message };
+    }
+  } catch {
+    return { error: "Could not upload signature." };
+  }
+
+  return { dbPath };
+}

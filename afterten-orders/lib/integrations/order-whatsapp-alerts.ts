@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatKitweDatetimeCompact } from "@/lib/format-kitwe-datetime";
-import { loadOrderWhatsAppLines } from "@/lib/integrations/order-whatsapp-lines";
+import { buildOrderDisplayGroups, loadOrderWhatsAppLines } from "@/lib/integrations/order-whatsapp-lines";
 import {
   formatDriverLoadedWhatsAppMessage,
   formatSupervisorAcceptedWhatsAppMessage,
@@ -42,6 +42,7 @@ export async function sendSupervisorAcceptedOrderWhatsApp(
   }
 
   const lines = await loadOrderWhatsAppLines(admin, orderId);
+  const groups = await buildOrderDisplayGroups(admin, lines);
   const acceptedAt = order.supervisor_accepted_at ?? new Date().toISOString();
   const preview = formatSupervisorAcceptedWhatsAppMessage({
     orderNumber: order.order_number,
@@ -52,6 +53,7 @@ export async function sendSupervisorAcceptedOrderWhatsApp(
     grandTotalFormatted: formatKwacha(Number(order.grand_total)),
     acceptedAtKitwe: formatKitweDatetimeCompact(acceptedAt),
     lines,
+    groups,
   });
 
   const wasenderKey = process.env.WASENDER_API_KEY?.trim();
@@ -91,6 +93,7 @@ export async function sendDriverDispatchedOrderWhatsApp(
     (Array.isArray(driverJoin) ? driverJoin[0]?.name : driverJoin?.name)?.trim() || "—";
 
   const lines = await loadOrderWhatsAppLines(admin, orderId);
+  const groups = await buildOrderDisplayGroups(admin, lines);
   const loadedAt = order.loaded_at ?? new Date().toISOString();
   const preview = formatDriverLoadedWhatsAppMessage({
     orderNumber: order.order_number,
@@ -102,6 +105,7 @@ export async function sendDriverDispatchedOrderWhatsApp(
     driverName,
     loadedAtKitwe: formatKitweDatetimeCompact(loadedAt),
     lines,
+    groups,
   });
 
   const wasenderKey = process.env.WASENDER_API_KEY?.trim();

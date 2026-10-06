@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -92,6 +92,23 @@ export function SupervisorOrderDetailScreen({
     [orderId, supabase],
   );
 
+  const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const schedulePreview = useCallback(
+    (lines: EditableOrderLine[]) => {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+      previewDebounceRef.current = setTimeout(() => {
+        void refreshPreview(lines);
+      }, 400);
+    },
+    [refreshPreview],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void fetchOrderRulesContext(supabase).then((ctx) => {
@@ -129,8 +146,10 @@ export function SupervisorOrderDetailScreen({
   }, [orderId, refreshPreview, supabase]);
 
   const canAccept = status === "placed" && !busy;
+  const canEdit = status === "placed";
 
   async function onQtyChange(index: number, text: string) {
+    if (!canEdit) return;
     const line = editable[index];
     if (!line) return;
     const cleaned = text.replace(/[^0-9.]/g, "");
@@ -147,7 +166,7 @@ export function SupervisorOrderDetailScreen({
     const next = editable.map((l, i) => (i === index ? { ...l, qty } : l));
     setEditable(next);
     setError(null);
-    await refreshPreview(next);
+    schedulePreview(next);
   }
 
   function onQtyBlur(index: number) {
@@ -167,10 +186,13 @@ export function SupervisorOrderDetailScreen({
     const qty = Number(draft);
     if (!Number.isFinite(qty) || qty <= 0) {
       setError("Quantity must be greater than zero.");
+      return;
     }
+    void refreshPreview(editable);
   }
 
   async function onPickVariant(index: number, variantId: string, variantName: string) {
+    if (!canEdit) return;
     const next = editable.map((line, i) =>
       i === index ? { ...line, product_id: variantId, name: variantName } : line,
     );
@@ -239,6 +261,9 @@ export function SupervisorOrderDetailScreen({
           {employeeName ? (
             <Text style={styles.headerLine}>Placed by {employeeName}</Text>
           ) : null}
+          {status !== "placed" ? (
+            <Text style={styles.headerLine}>Status: {status} (read-only)</Text>
+          ) : null}
         </View>
 
         <View style={styles.table}>
@@ -255,7 +280,7 @@ export function SupervisorOrderDetailScreen({
                 const editIndex = editable.findIndex(
                   (e) => e.product_id.toLowerCase() === row.product_id.toLowerCase(),
                 );
-                const isEditable = row.kind === "main" && editIndex >= 0;
+                const isEditable = canEdit && row.kind === "main" && editIndex >= 0;
                 const qtyLabel =
                   row.kind === "auto"
                     ? Number.isInteger(row.qty)

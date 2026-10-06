@@ -5,6 +5,7 @@ export type OrderWhatsAppLineKind = "product" | "variant" | "auto";
 
 export type OrderWhatsAppLine = {
   product_id: string;
+  parent_product_id: string;
   kind: OrderWhatsAppLineKind;
   productName: string;
   variantName: string | null;
@@ -25,11 +26,15 @@ function formatUomLabel(uom: string | null): string {
 }
 
 function lineDisplayName(line: OrderWhatsAppLine): string {
+  const variant = line.variantName?.trim();
+  if (variant && (line.kind === "variant" || line.kind === "auto")) {
+    return variant;
+  }
   return line.productName;
 }
 
 /** Plain manual product: `1 Case(s) — Mango Juice`. Variant/auto: `• 4 Tray(s) — …` */
-function formatSingleWhatsAppLine(line: OrderWhatsAppLine): string {
+export function formatWhatsAppOrderLine(line: OrderWhatsAppLine): string {
   const qty = formatQty(line.qty);
   const uom = formatUomLabel(line.uom);
   const text = `${qty} ${uom} — ${lineDisplayName(line)}`;
@@ -37,9 +42,61 @@ function formatSingleWhatsAppLine(line: OrderWhatsAppLine): string {
   return `• ${text}`;
 }
 
+export type WhatsAppProductGroup = {
+  headerName: string;
+  lines: OrderWhatsAppLine[];
+};
+
+function groupNeedsHeader(group: WhatsAppProductGroup): boolean {
+  return group.lines.length > 1 || group.lines.some((l) => l.kind === "variant" || l.kind === "auto");
+}
+
+/** Manual line + following auto-adds (single-order sequence). */
+export function groupContiguousWhatsAppLines(lines: OrderWhatsAppLine[]): WhatsAppProductGroup[] {
+  const groups: WhatsAppProductGroup[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const head = lines[i];
+    if (head.kind === "auto") {
+      groups.push({ headerName: head.productName, lines: [head] });
+      i += 1;
+      continue;
+    }
+    const block: OrderWhatsAppLine[] = [head];
+    i += 1;
+    while (i < lines.length && lines[i].kind === "auto") {
+      block.push(lines[i]);
+      i += 1;
+    }
+    groups.push({ headerName: head.productName, lines: block });
+  }
+  return groups;
+}
+
+export function formatWhatsAppProductGroups(groups: WhatsAppProductGroup[]): string[] {
+  const out: string[] = [];
+  for (const group of groups) {
+    if (groupNeedsHeader(group)) {
+      out.push(`*${group.headerName}*`);
+    }
+    for (const line of group.lines) {
+      out.push(formatWhatsAppOrderLine(line));
+    }
+  }
+  return out;
+}
+
+export function formatWhatsAppGroupedOrderLines(lines: OrderWhatsAppLine[]): string[] {
+  return formatWhatsAppProductGroups(groupContiguousWhatsAppLines(lines));
+}
+
 function formatItemBulletLines(lines: OrderWhatsAppLine[]): string[] {
   if (lines.length === 0) return ["(no lines)"];
-  return lines.map(formatSingleWhatsAppLine);
+  return formatWhatsAppGroupedOrderLines(lines);
+}
+
+export function countWhatsAppOrderItems(lines: OrderWhatsAppLine[]): number {
+  return countWhatsAppLineItems(lines);
 }
 
 function countWhatsAppLineItems(lines: OrderWhatsAppLine[]): number {
@@ -51,8 +108,11 @@ function buildOrderWhatsAppMessage(input: {
   headline: string;
   detailLines: string[];
   lines: OrderWhatsAppLine[];
+  groups?: WhatsAppProductGroup[];
 }): string {
-  const itemLines = formatItemBulletLines(input.lines);
+  const itemLines = input.groups
+    ? formatWhatsAppProductGroups(input.groups)
+    : formatItemBulletLines(input.lines);
   return [
     input.headline,
     "",
@@ -76,6 +136,7 @@ export type SupervisorAcceptedWhatsAppPayload = {
   grandTotalFormatted: string;
   acceptedAtKitwe: string;
   lines: OrderWhatsAppLine[];
+  groups?: WhatsAppProductGroup[];
 };
 
 export function formatSupervisorAcceptedWhatsAppMessage(p: SupervisorAcceptedWhatsAppPayload): string {
@@ -85,10 +146,10 @@ export function formatSupervisorAcceptedWhatsAppMessage(p: SupervisorAcceptedWha
       `📋 *Order:* ${p.orderNumber}`,
       `🏪 *Outlet:* ${p.outletName}`,
       `👤 *Placed by:* ${p.employeeName}`,
-      `💰 *Total:* ${p.grandTotalFormatted}`,
       `🕒 *Accepted:* ${p.acceptedAtKitwe}`,
     ],
     lines: p.lines,
+    groups: p.groups,
   });
 }
 
@@ -111,7 +172,6 @@ export function formatOutletOrderWhatsAppMessage(p: OutletOrderWhatsAppPayload):
     `*Order:* ${p.orderNumber}`,
     `*Outlet:* ${p.outletName} (${p.outletId})`,
     `*Placed by:* ${p.employeeName}`,
-    `*Total:* ${p.grandTotalFormatted}`,
     `*When:* ${p.placedAtKitwe} (Kitwe)`,
     `📊 *Lines:* ${p.lineCount}`,
   ];
@@ -130,6 +190,7 @@ export type DriverLoadedWhatsAppPayload = {
   driverName: string;
   loadedAtKitwe: string;
   lines: DriverLoadedWhatsAppLine[];
+  groups?: WhatsAppProductGroup[];
 };
 
 export function formatDriverLoadedWhatsAppMessage(p: DriverLoadedWhatsAppPayload): string {
@@ -139,11 +200,11 @@ export function formatDriverLoadedWhatsAppMessage(p: DriverLoadedWhatsAppPayload
       `📋 *Order:* ${p.orderNumber}`,
       `🏪 *Outlet:* ${p.outletName}`,
       `👤 *Placed by:* ${p.employeeName}`,
-      `💰 *Total:* ${p.grandTotalFormatted}`,
       `👨‍✈️ *Driver:* ${p.driverName}`,
       `🕒 *Dispatched:* ${p.loadedAtKitwe}`,
     ],
     lines: p.lines,
+    groups: p.groups,
   });
 }
 

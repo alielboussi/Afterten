@@ -11,7 +11,10 @@ export type PortalOrderRow = {
   outlet_name: string;
   status: string;
   grand_total_label: string;
-  created_at_label: string;
+  placed_at_label: string;
+  accepted_at_label: string;
+  loaded_at_label: string;
+  received_at_label: string;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -36,8 +39,18 @@ function statusClass(status: string): string {
   }
 }
 
-function pdfHref(orderId: string, kind: "placed" | "approved" | "handoff") {
+function pdfHref(orderId: string, kind: "placed" | "approved" | "handoff" | "completed") {
   return `/api/portal/orders/pdf?orderId=${encodeURIComponent(orderId)}&kind=${kind}`;
+}
+
+function PhaseCell({ label, when }: { label: string; when: string }) {
+  const done = when !== "—";
+  return (
+    <div className={`at-orderPhaseStep ${done ? "at-orderPhaseStepDone" : ""}`}>
+      <span className="at-orderPhaseStepLabel">{label}</span>
+      <span className="at-orderPhaseStepWhen">{when}</span>
+    </div>
+  );
 }
 
 export function OrdersTable({ orders }: { orders: PortalOrderRow[] }) {
@@ -61,6 +74,7 @@ export function OrdersTable({ orders }: { orders: PortalOrderRow[] }) {
   const canApproved = (status: string) =>
     status === "accepted" || status === "loaded" || status === "completed";
   const canHandoff = (status: string) => status === "loaded" || status === "completed";
+  const canCompleted = (status: string) => status === "completed";
 
   return (
     <div className="at-tableWrap at-orders-table">
@@ -70,8 +84,8 @@ export function OrdersTable({ orders }: { orders: PortalOrderRow[] }) {
             <th>Order</th>
             <th>Outlet</th>
             <th>Status</th>
+            <th>Phases</th>
             <th>Total</th>
-            <th>Placed</th>
             <th />
             <th>PDF</th>
             <th>WhatsApp</th>
@@ -93,8 +107,15 @@ export function OrdersTable({ orders }: { orders: PortalOrderRow[] }) {
                   {STATUS_LABEL[o.status] ?? o.status}
                 </span>
               </td>
+              <td>
+                <div className="at-orderPhaseGrid">
+                  <PhaseCell label="Placed" when={o.placed_at_label} />
+                  <PhaseCell label="Accepted" when={o.accepted_at_label} />
+                  <PhaseCell label="Dispatched" when={o.loaded_at_label} />
+                  <PhaseCell label="Received" when={o.received_at_label} />
+                </div>
+              </td>
               <td>{o.grand_total_label}</td>
-              <td>{o.created_at_label}</td>
               <td>
                 <Link className="at-btnSecondary at-btnCompact" href={`/dashboard/orders/${o.id}`}>
                   View
@@ -113,6 +134,11 @@ export function OrdersTable({ orders }: { orders: PortalOrderRow[] }) {
                   {canHandoff(o.status) ? (
                     <a className="at-btnSecondary at-btnCompact" href={pdfHref(o.id, "handoff")}>
                       Handoff
+                    </a>
+                  ) : null}
+                  {canCompleted(o.status) ? (
+                    <a className="at-btnSecondary at-btnCompact" href={pdfHref(o.id, "completed")}>
+                      Completed
                     </a>
                   ) : null}
                 </div>

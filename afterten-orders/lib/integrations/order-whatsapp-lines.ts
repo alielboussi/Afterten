@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { OrderWhatsAppLine } from "@/lib/integrations/outlet-order-notify";
+import type { OrderWhatsAppLine, WhatsAppProductGroup } from "@/lib/integrations/outlet-order-notify";
 import {
   computeAutoAddedQtyByProductId,
   displayQtyForOrderLine,
@@ -190,6 +190,7 @@ async function resolveRow(
 function toWhatsAppLine(row: ResolvedRow): OrderWhatsAppLine {
   return {
     product_id: row.product_id,
+    parent_product_id: row.parent_product_id,
     kind: row.kind,
     productName: row.productName,
     variantName: row.variantName,
@@ -286,4 +287,181 @@ export async function loadOrderWhatsAppLines(
   }
 
   return ordered;
+}
+
+export type AggregatedPickGroup = WhatsAppProductGroup & {
+  sortIndex: number;
+};
+
+async function catalogProductName(admin: SupabaseClient, productId: string): Promise<string> {
+  const key = productId.trim().toLowerCase();
+  const { data } = await admin
+    .from("products")
+    .select("name")
+    .ilike("product_id", key)
+    .maybeSingle();
+  return String(data?.name ?? "").trim() || productId;
+}
+
+async function headerForParentId(
+  admin: SupabaseClient,
+  parentId: string,
+  headerNameCache: Map<string, string>,
+): Promise<string> {
+  const key = parentId.trim().toLowerCase();
+  const cached = headerNameCache.get(key);
+  if (cached) return cached;
+  const name = await catalogProductName(admin, key);
+  headerNameCache.set(key, name);
+  return name;
+}
+
+function sortLinesWithinGroup(group: AggregatedPickGroup): void {
+  const kindRank: Record<OrderWhatsAppLine["kind"], number> = {
+    product: 0,
+    variant: 1,
+    auto: 2,
+  };
+  group.lines.sort((a, b) => {
+    const byKind = kindRank[a.kind] - kindRank[b.kind];
+    if (byKind !== 0) return byKind;
+    const nameA =
+      a.kind === "variant" || a.kind === "auto"
+        ? (a.variantName ?? a.productName)
+        : a.productName;
+    const nameB =
+      b.kind === "variant" || b.kind === "auto"
+        ? (b.variantName ?? b.productName)
+        : b.productName;
+    return nameA.localeCompare(nameB, "en", { sensitivity: "base" });
+  });
+}
+
+async function assignLineToPickGroup(
+  admin: SupabaseClient,
+  ctx: {
+    triggerByAdded: Map<string, string>;
+    headerNameCache: Map<string, string>;
+    groups: Map<string, AggregatedPickGroup>;
+  },
+  line: OrderWhatsAppLine,
+  sortIndex: number,
+): Promise<void> {
+  const { triggerByAdded, headerNameCache, groups } = ctx;
+
+  if (line.kind === "auto") {
+    const trigger = triggerByAdded.get(line.product_id);
+    if (!trigger) {
+      const groupKey = line.product_id;
+      let group = groups.get(groupKey);
+      if (!group) {
+        group = {
+          headerName: line.productName,
+          lines: [],
+          sortIndex,
+        };
+        groups.set(groupKey, group);
+      } else {
+        group.sortIndex = Math.min(group.sortIndex, sortIndex);
+      }
+      group.lines.push(line);
+      return;
+    }
+    const parentId = await resolveParentProductId(admin, trigger);
+    const headerName = await headerForParentId(admin, parentId, headerNameCache);
+    let group = groups.get(parentId);
+    if (!group) {
+      group = { headerName, lines: [], sortIndex };
+      groups.set(parentId, group);
+    } else {
+      group.sortIndex = Math.min(group.sortIndex, sortIndex);
+    }
+    group.lines.push(line);
+    return;
+  }
+
+  if (line.kind === "variant") {
+    const groupKey = line.parent_product_id.trim().toLowerCase();
+    let group = groups.get(groupKey);
+    if (!group) {
+      group = {
+        headerName: line.productName,
+        lines: [],
+        sortIndex,
+      };
+      groups.set(groupKey, group);
+    } else {
+      group.sortIndex = Math.min(group.sortIndex, sortIndex);
+    }
+    group.lines.push(line);
+    return;
+  }
+
+  const groupKey = line.product_id.trim().toLowerCase();
+  let group = groups.get(groupKey);
+  if (!group) {
+    group = {
+      headerName: line.productName,
+      lines: [],
+      sortIndex,
+    };
+    groups.set(groupKey, group);
+  } else {
+    group.sortIndex = Math.min(group.sortIndex, sortIndex);
+  }
+  group.lines.push(line);
+}
+
+async function buildPickDisplayGroupsFromLines(
+  admin: SupabaseClient,
+  entries: { line: OrderWhatsAppLine; sortIndex: number }[],
+): Promise<AggregatedPickGroup[]> {
+  const rules = await loadOrderRules(admin);
+  const triggerByAdded = new Map<string, string>();
+  for (const r of rules) {
+    triggerByAdded.set(r.added_product_id, r.trigger_product_id);
+  }
+
+  const groups = new Map<string, AggregatedPickGroup>();
+  const headerNameCache = new Map<string, string>();
+  const ctx = { triggerByAdded, headerNameCache, groups };
+
+  for (const { line, sortIndex } of entries) {
+    await assignLineToPickGroup(admin, ctx, line, sortIndex);
+  }
+
+  for (const group of groups.values()) {
+    sortLinesWithinGroup(group);
+  }
+
+  return [...groups.values()].sort((a, b) => a.sortIndex - b.sortIndex);
+}
+
+/** Group lines under parent catalog product (variants + rule autos share one header). */
+export async function buildOrderDisplayGroups(
+  admin: SupabaseClient,
+  lines: OrderWhatsAppLine[],
+): Promise<WhatsAppProductGroup[]> {
+  const entries = lines.map((line, sortIndex) => ({ line, sortIndex }));
+  const groups = await buildPickDisplayGroupsFromLines(admin, entries);
+  return groups.map(({ headerName, lines: groupLines }) => ({
+    headerName,
+    lines: groupLines,
+  }));
+}
+
+/** Merge totals grouped by parent catalog product (variants + rule autos under one header). */
+export async function buildAggregatedPickDisplayGroups(
+  admin: SupabaseClient,
+  totals: Map<string, OrderWhatsAppLine>,
+  orderedKeys: string[],
+): Promise<AggregatedPickGroup[]> {
+  const keyIndex = new Map(orderedKeys.map((k, i) => [k, i] as const));
+  const entries: { line: OrderWhatsAppLine; sortIndex: number }[] = [];
+  for (const lineKey of orderedKeys) {
+    const line = totals.get(lineKey);
+    if (!line) continue;
+    entries.push({ line, sortIndex: keyIndex.get(lineKey) ?? 9999 });
+  }
+  return buildPickDisplayGroupsFromLines(admin, entries);
 }

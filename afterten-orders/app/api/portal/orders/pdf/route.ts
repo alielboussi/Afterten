@@ -9,7 +9,7 @@ import {
 
 export const runtime = "nodejs";
 
-const KINDS: PortalOrderPdfKind[] = ["placed", "approved", "handoff"];
+const KINDS: PortalOrderPdfKind[] = ["placed", "approved", "handoff", "completed"];
 
 export async function GET(req: Request) {
   const gate = await assertCallerIsPortalAdmin();
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "orderId required." }, { status: 400 });
   }
   if (!KINDS.includes(kind)) {
-    return NextResponse.json({ error: "kind must be placed, approved, or handoff." }, { status: 400 });
+    return NextResponse.json({ error: "kind must be placed, approved, handoff, or completed." }, { status: 400 });
   }
 
   let admin;

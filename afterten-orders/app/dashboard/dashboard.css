@@ -907,6 +907,101 @@
   text-align: center;
 }
 
+.at-ordersPageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 8px;
+}
+
+.at-ordersPageHeaderMain {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.at-ordersPageHeaderActions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 100%;
+}
+
+.at-purgeOrdersWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.at-orderPhaseGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  min-width: 11rem;
+  text-align: left;
+}
+
+.at-orderPhaseStep {
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: #78716c;
+}
+
+.at-orderPhaseStepDone {
+  color: #292524;
+}
+
+.at-orderPhaseStepLabel {
+  display: block;
+  font-weight: 700;
+  color: inherit;
+}
+
+.at-orderPhaseStepWhen {
+  display: block;
+  font-size: 0.68rem;
+  color: #57534e;
+}
+
+.at-orderDetailPdfRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e7e5e4;
+}
+
+.at-dailyPickSendWrap {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.at-dailyPickSendOk {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--afterten-green);
+  text-align: right;
+}
+
+.at-dailyPickSendErr {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--afterten-red-dark);
+  text-align: right;
+  max-width: 14rem;
+}
+
 .at-orders-table .at-table td:first-child,
 .at-orders-table .at-table th:first-child {
   text-align: left;

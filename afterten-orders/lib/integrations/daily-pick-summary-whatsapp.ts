@@ -2,51 +2,32 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatKitweDatetimeCompact } from "@/lib/format-kitwe-datetime";
-import { loadOrderWhatsAppLines } from "@/lib/integrations/order-whatsapp-lines";
-import type { OrderWhatsAppLine } from "@/lib/integrations/outlet-order-notify";
 import {
+  buildAggregatedPickDisplayGroups,
+  loadOrderWhatsAppLines,
+} from "@/lib/integrations/order-whatsapp-lines";
+import type { OrderWhatsAppLine, WhatsAppProductGroup } from "@/lib/integrations/outlet-order-notify";
+import {
+  countWhatsAppOrderItems,
+  formatWhatsAppProductGroups,
   sendWasenderGroupText,
   whatsAppSkipReason,
 } from "@/lib/integrations/outlet-order-notify";
 
-export type AggregatedPickLine = {
-  product_id: string;
-  productName: string;
-  uom: string | null;
-  qty: number;
-  kind: OrderWhatsAppLine["kind"];
-};
+const SECTION_RULE = "────────────────";
 
 export type DailyPickSummary = {
   generatedAtIso: string;
   orderCount: number;
   outletNames: string[];
-  lines: AggregatedPickLine[];
+  lines: OrderWhatsAppLine[];
+  groups: WhatsAppProductGroup[];
 };
-
-function formatQty(qty: number): string {
-  return Number.isInteger(qty) || qty % 1 === 0 ? String(Math.round(qty)) : String(qty);
-}
-
-function formatUomLabel(uom: string | null): string {
-  const raw = (uom ?? "").trim() || "Unit";
-  if (/\(s\)$/i.test(raw)) return raw;
-  return `${raw}(s)`;
-}
-
-/** Warehouse list: every row is a bullet (totals across outlets). */
-function formatAggregatedPickLine(line: AggregatedPickLine): string {
-  const qty = formatQty(line.qty);
-  const uom = formatUomLabel(line.uom);
-  return `• ${qty} ${uom} — ${line.productName}`;
-}
 
 export function formatDailyPickSummaryWhatsAppMessage(summary: DailyPickSummary): string {
   const whenKitwe = formatKitweDatetimeCompact(summary.generatedAtIso);
   const outlets =
-    summary.outletNames.length > 0
-      ? summary.outletNames.join(", ")
-      : "—";
+    summary.outletNames.length > 0 ? summary.outletNames.join(", ") : "—";
 
   if (summary.orderCount === 0) {
     return [
@@ -58,8 +39,9 @@ export function formatDailyPickSummaryWhatsAppMessage(summary: DailyPickSummary)
     ].join("\n");
   }
 
-  const itemLines = summary.lines.map(formatAggregatedPickLine);
+  const itemLines = formatWhatsAppProductGroups(summary.groups);
   const orderLabel = summary.orderCount === 1 ? "1 order" : `${summary.orderCount} orders`;
+  const itemCount = countWhatsAppOrderItems(summary.lines);
 
   return [
     "📦 *Daily pick summary* (all outlets)",
@@ -68,11 +50,11 @@ export function formatDailyPickSummaryWhatsAppMessage(summary: DailyPickSummary)
     `🏪 *Outlets:* ${outlets}`,
     `📋 *${orderLabel}* (supervisor accepted, not yet dispatched)`,
     "",
-    "────────────────",
+    SECTION_RULE,
     ...itemLines,
-    "────────────────",
+    SECTION_RULE,
     "",
-    `📦 ${summary.lines.length} product line${summary.lines.length === 1 ? "" : "s"}`,
+    `📦 ${itemCount} item${itemCount === 1 ? "" : "s"}`,
   ].join("\n");
 }
 
@@ -87,9 +69,12 @@ export async function loadDailyPickSummary(admin: SupabaseClient): Promise<Daily
   if (error) throw new Error(error.message);
 
   const orderRows = orders ?? [];
-  const outletNames = [...new Set(orderRows.map((o) => String(o.outlet_name ?? "").trim()).filter(Boolean))];
+  const outletNames = [
+    ...new Set(orderRows.map((o) => String(o.outlet_name ?? "").trim()).filter(Boolean)),
+  ];
 
-  const totals = new Map<string, AggregatedPickLine>();
+  const totals = new Map<string, OrderWhatsAppLine>();
+  const orderedKeys: string[] = [];
 
   for (const order of orderRows) {
     const lines = await loadOrderWhatsAppLines(admin, String(order.id));
@@ -100,25 +85,23 @@ export async function loadDailyPickSummary(admin: SupabaseClient): Promise<Daily
         existing.qty += line.qty;
         continue;
       }
-      totals.set(key, {
-        product_id: key,
-        productName: line.productName,
-        uom: line.uom,
-        qty: line.qty,
-        kind: line.kind,
-      });
+      totals.set(key, { ...line });
+      orderedKeys.push(key);
     }
   }
 
-  const lines = [...totals.values()].sort((a, b) =>
-    a.productName.localeCompare(b.productName, "en", { sensitivity: "base" }),
-  );
+  const lines = orderedKeys
+    .map((key) => totals.get(key))
+    .filter((line): line is OrderWhatsAppLine => line != null);
+
+  const groups = await buildAggregatedPickDisplayGroups(admin, totals, orderedKeys);
 
   return {
     generatedAtIso,
     orderCount: orderRows.length,
     outletNames,
     lines,
+    groups,
   };
 }
 

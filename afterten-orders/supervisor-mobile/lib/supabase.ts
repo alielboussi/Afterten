@@ -100,10 +100,14 @@ export async function fetchSupervisorOrders(
   supabase: SupabaseClient,
   outletId: string | null,
   query: string,
+  status: string | null = null,
 ): Promise<{ orders: SupervisorOrderRow[]; error: string | null }> {
+  const statusParam =
+    status && ["placed", "accepted", "loaded", "completed"].includes(status) ? status : null;
   const { data, error } = await supabase.rpc("list_supervisor_orders", {
     p_outlet_id: outletId,
     p_query: query.trim() || null,
+    p_status: statusParam,
   });
   if (error) return { orders: [], error: error.message };
 

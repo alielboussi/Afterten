@@ -3,17 +3,24 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   generateAndStoreApprovedOrderPdf,
+  generateAndStoreCompletedOrderPdf,
   generateAndStoreDriverHandoffPdf,
   generateAndStoreOutletOrderPdf,
 } from "@/lib/integrations/outlet-order-pdf";
 
-export type PortalOrderPdfKind = "placed" | "approved" | "handoff";
+export type PortalOrderPdfKind = "placed" | "approved" | "handoff" | "completed";
 
 export function parseOrderStoragePath(
   fullPath: string,
 ): { bucket: string; key: string } | null {
   const trimmed = fullPath.trim();
-  const buckets = ["order-pdfs", "approved-orders", "driver-handoffs"] as const;
+  const buckets = [
+    "order-pdfs",
+    "approved-orders",
+    "driver-handoffs",
+    "completed-orders",
+    "completed-orders-archive",
+  ] as const;
   for (const bucket of buckets) {
     const prefix = `${bucket}/`;
     if (trimmed.startsWith(prefix)) {
@@ -33,6 +40,9 @@ export async function ensurePortalOrderPdf(
   }
   if (kind === "approved") {
     return generateAndStoreApprovedOrderPdf(admin, orderId);
+  }
+  if (kind === "completed") {
+    return generateAndStoreCompletedOrderPdf(admin, orderId);
   }
   return generateAndStoreDriverHandoffPdf(admin, orderId);
 }

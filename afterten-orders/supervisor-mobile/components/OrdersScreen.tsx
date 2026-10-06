@@ -50,21 +50,16 @@ export function OrdersScreen({
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const orderRes = await fetchSupervisorOrders(supabase, null, "");
+    const orderRes = await fetchSupervisorOrders(supabase, null, query, statusFilter);
     setLoading(false);
     if (orderRes.error) setError(orderRes.error);
     setOrders(orderRes.orders);
-  }, [supabase]);
+  }, [supabase, query, statusFilter]);
 
   const filteredOrders = useMemo(() => {
-    const statusKey = statusFilter?.trim().toLowerCase() ?? "";
-    let list = orders;
-    if (statusKey) {
-      list = list.filter((o) => o.status.trim().toLowerCase() === statusKey);
-    }
     const needle = query.trim().toLowerCase();
-    if (!needle) return list;
-    return list.filter((order) => {
+    if (!needle) return orders;
+    return orders.filter((order) => {
       const haystack = [
         order.order_number,
         order.outlet_name,
@@ -75,7 +70,7 @@ export function OrdersScreen({
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [orders, query, statusFilter]);
+  }, [orders, query]);
 
   useEffect(() => {
     void load();

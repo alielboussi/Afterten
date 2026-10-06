@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -40,6 +41,11 @@ import { CatalogProductImage } from "./components/CatalogProductImage";
 import { OrderSummaryScreen } from "./components/OrderSummaryScreen";
 import { OutletAcceptedOrderDetailScreen } from "./components/OutletAcceptedOrderDetailScreen";
 import { ViewOrdersScreen } from "./components/ViewOrdersScreen";
+import { OffloadingDashboardScreen } from "./components/OffloadingDashboardScreen";
+import { OffloadingChecklistScreen } from "./components/OffloadingChecklistScreen";
+import { OffloadingSignScreen } from "./components/OffloadingSignScreen";
+import { CompletedOrdersScreen } from "./components/CompletedOrdersScreen";
+import { CompletedOrderDetailScreen } from "./components/CompletedOrderDetailScreen";
 import { ToastBanner } from "./components/ToastBanner";
 import {
   cartHasItems,
@@ -47,7 +53,8 @@ import {
   type OrderSummaryPreview,
 } from "./lib/order-summary";
 import { submitOutletOrder } from "./lib/submit-outlet-order";
-import { waitForOrderPdfAndOpen } from "./lib/order-pdf-download";
+import { flushOfflineCompleteQueue } from "./lib/offline-complete-queue";
+import { registerOutletPushNotifications } from "./lib/outlet-push";
 import type { SignaturePadHandle } from "./components/SignaturePad";
 
 type Screen = "loading" | "login" | "home";
@@ -79,6 +86,11 @@ function AppShell() {
   const [viewOrdersActive, setViewOrdersActive] = useState(false);
   const [viewOrderDetailId, setViewOrderDetailId] = useState<string | null>(null);
   const [offloadingActive, setOffloadingActive] = useState(false);
+  const [offloadingChecklistOrderId, setOffloadingChecklistOrderId] = useState<string | null>(null);
+  const [offloadingSignOrderId, setOffloadingSignOrderId] = useState<string | null>(null);
+  const [offloadingRefreshToken, setOffloadingRefreshToken] = useState(0);
+  const [completedOrdersActive, setCompletedOrdersActive] = useState(false);
+  const [completedOrderDetailId, setCompletedOrderDetailId] = useState<string | null>(null);
 
   async function onViewSummary() {
     if (!supabase || !cartHasItems(cartQty)) return;
@@ -127,15 +139,8 @@ function AppShell() {
     setOrderSummaryPreview(null);
     setOrderFlowActive(false);
     setOrderSaveError(null);
-    setSaveToast(`Order ${result.orderNumber} saved — opening PDF…`);
+    setSaveToast(`Order ${result.orderNumber} saved.`);
     void loadProducts();
-    void waitForOrderPdfAndOpen(supabase, result.orderId).then((pdf) => {
-      if (!pdf.ok) {
-        setSaveToast(`Order ${result.orderNumber} saved (PDF: ${pdf.error})`);
-      } else {
-        setSaveToast(`Order ${result.orderNumber} saved — PDF ready`);
-      }
-    });
   }
 
   const loadProducts = useCallback(async () => {
@@ -176,7 +181,27 @@ function AppShell() {
     setOrderFlowActive(false);
     setProducts([]);
     setScreen("home");
+    void registerOutletPushNotifications(supabase);
+    void flushOfflineCompleteQueue(supabase).then((r) => {
+      if (r.processed > 0) {
+        setSaveToast(`${r.processed} queued order(s) completed.`);
+      }
+    });
   }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase || screen !== "home") return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      void flushOfflineCompleteQueue(supabase).then((r) => {
+        if (r.processed > 0) {
+          setSaveToast(`${r.processed} queued order(s) completed.`);
+          setOffloadingRefreshToken((t) => t + 1);
+        }
+      });
+    });
+    return () => sub.remove();
+  }, [supabase, screen]);
 
   useEffect(() => {
     void bootstrap();
@@ -266,7 +291,6 @@ function AppShell() {
             supabase={supabase}
             orderId={viewOrderDetailId}
             onBack={() => setViewOrderDetailId(null)}
-            onToast={setSaveToast}
             contentPaddingBottom={screenLayout.paddingBottom + 16}
           />
           <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
@@ -275,7 +299,31 @@ function AppShell() {
       );
     }
 
-    if (offloadingActive) {
+    if (completedOrdersActive && supabase) {
+      if (completedOrderDetailId) {
+        return (
+          <View
+            style={[
+              styles.home,
+              {
+                paddingTop: screenLayout.paddingTop,
+                paddingBottom: screenLayout.paddingBottom,
+                paddingHorizontal: screenLayout.paddingHorizontal,
+              },
+            ]}
+          >
+            <CompletedOrderDetailScreen
+              supabase={supabase}
+              orderId={completedOrderDetailId}
+              onBack={() => setCompletedOrderDetailId(null)}
+              onToast={setSaveToast}
+              contentPaddingBottom={screenLayout.paddingBottom + 16}
+            />
+            <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
+            <StatusBar style="auto" />
+          </View>
+        );
+      }
       return (
         <View
           style={[
@@ -287,16 +335,74 @@ function AppShell() {
             },
           ]}
         >
-          <Pressable style={styles.backLink} onPress={() => setOffloadingActive(false)}>
-            <Text style={styles.backLinkText}>← Dashboard</Text>
-          </Pressable>
-          <Text style={styles.offloadingTitle}>Offloading</Text>
-          <Text style={styles.offloadingLead}>
-            This workflow will be configured next. Your loaded orders will appear here.
-          </Text>
+          <CompletedOrdersScreen
+            supabase={supabase}
+            onBack={() => setCompletedOrdersActive(false)}
+            onOpenDetail={(id) => setCompletedOrderDetailId(id)}
+            onToast={setSaveToast}
+            contentPaddingBottom={screenLayout.paddingBottom + 16}
+          />
+          <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
           <StatusBar style="auto" />
         </View>
       );
+    }
+
+    if (offloadingActive && supabase) {
+      const offloadingShell = (
+        <View
+          style={[
+            styles.home,
+            {
+              paddingTop: screenLayout.paddingTop,
+              paddingBottom: screenLayout.paddingBottom,
+              paddingHorizontal: screenLayout.paddingHorizontal,
+            },
+          ]}
+        >
+          {offloadingSignOrderId ? (
+            <OffloadingSignScreen
+              supabase={supabase}
+              orderId={offloadingSignOrderId}
+              onBack={() => setOffloadingSignOrderId(null)}
+              onComplete={(message) => {
+                setOffloadingSignOrderId(null);
+                setOffloadingRefreshToken((t) => t + 1);
+                setSaveToast(message);
+              }}
+              contentPaddingBottom={screenLayout.paddingBottom + 16}
+            />
+          ) : offloadingChecklistOrderId ? (
+            <OffloadingChecklistScreen
+              supabase={supabase}
+              orderId={offloadingChecklistOrderId}
+              onBack={() => setOffloadingChecklistOrderId(null)}
+              onAccepted={() => {
+                setOffloadingChecklistOrderId(null);
+                setOffloadingRefreshToken((t) => t + 1);
+                setSaveToast("Items accepted. Tap the sign icon to complete the order.");
+              }}
+              onToast={setSaveToast}
+              contentPaddingBottom={screenLayout.paddingBottom + 16}
+            />
+          ) : (
+            <OffloadingDashboardScreen
+              supabase={supabase}
+              onBack={() => setOffloadingActive(false)}
+              onOpenChecklist={(id) => setOffloadingChecklistOrderId(id)}
+              onOpenSign={(id) => setOffloadingSignOrderId(id)}
+              onSignBlocked={() =>
+                setSaveToast("Confirm all received items before signing off.")
+              }
+              refreshToken={offloadingRefreshToken}
+              contentPaddingBottom={screenLayout.paddingBottom + 16}
+            />
+          )}
+          <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
+          <StatusBar style="auto" />
+        </View>
+      );
+      return offloadingShell;
     }
 
     if (viewOrdersActive) {
@@ -315,7 +421,6 @@ function AppShell() {
             supabase={supabase}
             onBack={() => setViewOrdersActive(false)}
             onOpenOrder={(id) => setViewOrderDetailId(id)}
-            onToast={setSaveToast}
             contentPaddingBottom={screenLayout.paddingBottom + 16}
           />
           <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
@@ -526,6 +631,13 @@ function AppShell() {
                   accessibilityRole="button"
                 >
                   <Text style={styles.offloadingBtnText}>Offloading</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.viewOrdersBtn, compact && styles.viewOrdersBtnCompact]}
+                  onPress={() => setCompletedOrdersActive(true)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.viewOrdersBtnText}>Completed Orders</Text>
                 </Pressable>
               </View>
               <View style={styles.dashboardActionsSlot} />

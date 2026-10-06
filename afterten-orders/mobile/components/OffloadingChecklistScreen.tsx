@@ -9,27 +9,32 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatKwacha } from "../lib/currency";
 import {
-  buildLoadingChecklistGroupsFromLines,
-  confirmLoadingChecklist,
-  fetchDeliveryLoadingDetail,
-  fetchOrderRulesContext,
-} from "../lib/delivery-loading";
+  collectCheckableItemIds,
+  type OffloadingDisplayGroup,
+} from "../lib/offloading-display";
+import { confirmOffloadingChecklist, fetchOffloadingOrderDetail } from "../lib/offloading";
 
 type Props = {
   supabase: SupabaseClient;
   orderId: string;
   onBack: () => void;
-  onConfirmed: () => void;
+  onAccepted: () => void;
   onToast: (message: string) => void;
   contentPaddingBottom: number;
 };
 
-export function DeliveryLoadingChecklistScreen({
+function productLabel(row: OffloadingDisplayGroup["rows"][number]): string {
+  if (row.kind === "variant" || row.kind === "auto") return `- ${row.name}`;
+  return row.name;
+}
+
+export function OffloadingChecklistScreen({
   supabase,
   orderId,
   onBack,
-  onConfirmed,
+  onAccepted,
   onToast,
   contentPaddingBottom,
 }: Props) {
@@ -37,35 +42,31 @@ export function DeliveryLoadingChecklistScreen({
   const [busy, setBusy] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [outletName, setOutletName] = useState("");
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [grandTotal, setGrandTotal] = useState(0);
+  const [groups, setGroups] = useState<OffloadingDisplayGroup[]>([]);
   const [allItemIds, setAllItemIds] = useState<string[]>([]);
   const [readOnly, setReadOnly] = useState(false);
-  const [groups, setGroups] = useState<
-    ReturnType<typeof buildLoadingChecklistGroupsFromLines>
-  >([]);
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [detailRes, rulesCtx] = await Promise.all([
-        fetchDeliveryLoadingDetail(supabase, orderId),
-        fetchOrderRulesContext(supabase),
-      ]);
+      const { detail, error } = await fetchOffloadingOrderDetail(supabase, orderId);
       if (cancelled) return;
       setLoading(false);
-      if (!detailRes.detail) {
-        onToast(detailRes.error ?? "Could not load order.");
+      if (!detail) {
+        onToast(error ?? "Could not load order.");
         onBack();
         return;
       }
-      setOrderNumber(detailRes.detail.order_number);
-      setOutletName(detailRes.detail.outlet_name);
-      const built = buildLoadingChecklistGroupsFromLines(detailRes.detail.lines, rulesCtx);
-      setGroups(built);
-      const ids = detailRes.detail.lines.map((l) => l.item_id).filter(Boolean);
+      setOrderNumber(detail.order_number);
+      setOutletName(detail.outlet_name);
+      setGrandTotal(detail.grand_total);
+      setGroups(detail.groups);
+      const ids = collectCheckableItemIds(detail.groups);
       setAllItemIds(ids);
-      const frozen = Boolean(detailRes.detail.loading_checklist_completed_at);
+      const frozen = Boolean(detail.offloading_checklist_completed_at);
       setReadOnly(frozen);
       if (frozen) {
         setChecked(Object.fromEntries(ids.map((id) => [id, true])));
@@ -81,25 +82,25 @@ export function DeliveryLoadingChecklistScreen({
     [allItemIds, checked],
   );
 
-  function toggleItem(itemId: string) {
+  function toggleItem(itemId: string | null) {
     if (readOnly || !itemId) return;
     setChecked((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   }
 
-  async function onConfirm() {
+  async function onAccept() {
     if (readOnly) return;
     if (!allChecked) {
-      onToast("There is an item not yet loaded");
+      onToast("There is an item not yet received");
       return;
     }
     setBusy(true);
-    const { error } = await confirmLoadingChecklist(supabase, orderId, allItemIds);
+    const { error } = await confirmOffloadingChecklist(supabase, orderId, allItemIds);
     setBusy(false);
     if (error) {
       onToast(error);
       return;
     }
-    onConfirmed();
+    onAccepted();
   }
 
   if (loading) {
@@ -113,14 +114,14 @@ export function DeliveryLoadingChecklistScreen({
   return (
     <View style={styles.root}>
       <Pressable style={styles.backLink} onPress={onBack}>
-        <Text style={styles.backLinkText}>← Back</Text>
+        <Text style={styles.backLinkText}>← Offloading</Text>
       </Pressable>
-      <Text style={styles.title}>Confirm loading</Text>
+      <Text style={styles.title}>Receive order</Text>
       <Text style={styles.subtitle}>
         {outletName} · {orderNumber}
       </Text>
       {readOnly ? (
-        <Text style={styles.frozenNote}>Loading confirmed — checklist is locked.</Text>
+        <Text style={styles.frozenNote}>Items accepted — checklist is locked.</Text>
       ) : null}
 
       <ScrollView contentContainerStyle={{ paddingBottom: contentPaddingBottom }}>
@@ -130,51 +131,70 @@ export function DeliveryLoadingChecklistScreen({
             <Text style={[styles.cellHeader, styles.colProduct]}>Product</Text>
             <Text style={[styles.cellHeader, styles.colQty]}>Qty</Text>
             <Text style={[styles.cellHeader, styles.colUom]}>UOM</Text>
+            <Text style={[styles.cellHeader, styles.colAmount]}>Amount</Text>
           </View>
           {groups.map((group) => (
             <View key={group.groupKey}>
               {group.rows.map((row) => (
                 <View key={row.rowKey} style={styles.tableBodyRow}>
-                  <Pressable
-                    style={styles.colCheck}
-                    onPress={() => toggleItem(row.item_id)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: Boolean(checked[row.item_id]) }}
-                  >
-                    <Ionicons
-                      name={checked[row.item_id] ? "checkbox" : "square-outline"}
-                      size={22}
-                      color={checked[row.item_id] ? "#047857" : "#78716c"}
-                    />
-                  </Pressable>
+                  {row.item_id ? (
+                    <Pressable
+                      style={styles.colCheck}
+                      onPress={() => toggleItem(row.item_id)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: Boolean(checked[row.item_id!]) }}
+                    >
+                      <Ionicons
+                        name={checked[row.item_id!] ? "checkbox" : "square-outline"}
+                        size={22}
+                        color={checked[row.item_id!] ? "#047857" : "#78716c"}
+                      />
+                    </Pressable>
+                  ) : (
+                    <View style={styles.colCheck} />
+                  )}
                   <View style={styles.colProduct}>
                     <Text
                       style={
-                        row.kind === "main" ? styles.cellProductNameMain : styles.cellProductNameAuto
+                        row.kind === "main" || row.kind === "parent"
+                          ? styles.cellProductNameMain
+                          : styles.cellProductNameSub
                       }
                       numberOfLines={3}
                     >
-                      {row.kind === "auto" ? `- ${row.name}` : row.name}
+                      {productLabel(row)}
                     </Text>
                   </View>
-                  <Text style={[styles.cellBody, styles.colQty]}>{row.qty}</Text>
+                  <Text style={[styles.cellBody, styles.colQty]}>
+                    {row.qty != null ? row.qty : ""}
+                  </Text>
                   <Text style={[styles.cellBody, styles.colUom]}>{row.uom}</Text>
+                  <Text style={[styles.cellBody, styles.colAmount]}>
+                    {row.line_total != null && row.line_total > 0
+                      ? formatKwacha(row.line_total)
+                      : ""}
+                  </Text>
                 </View>
               ))}
             </View>
           ))}
         </View>
 
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalValue}>{formatKwacha(grandTotal)}</Text>
+        </View>
+
         <Pressable
-          style={[styles.confirmBtn, (busy || readOnly || !allChecked) && styles.confirmBtnDisabled]}
-          disabled={busy || readOnly || !allChecked}
-          onPress={() => void onConfirm()}
+          style={[styles.acceptBtn, (!allChecked || busy || readOnly) && styles.acceptBtnDisabled]}
+          disabled={!allChecked || busy || readOnly}
+          onPress={() => void onAccept()}
         >
           {busy ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.confirmBtnText}>
-              {readOnly ? "Loading confirmed" : "Confirm Loading"}
+            <Text style={styles.acceptBtnText}>
+              {readOnly ? "Order accepted" : "Accept Order"}
             </Text>
           )}
         </Pressable>
@@ -215,23 +235,27 @@ const styles = StyleSheet.create({
   cellHeader: { fontSize: 11, fontWeight: "700", color: "#57534e" },
   cellBody: { fontSize: 12, color: "#292524" },
   colCheck: { width: 32, alignItems: "center" },
-  colProduct: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 12 },
-  colQty: { width: 52, flexShrink: 0, textAlign: "center", paddingHorizontal: 4 },
-  colUom: { width: 58, flexShrink: 0, paddingLeft: 8, textAlign: "center" },
-  cellProductNameMain: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#292524",
-    textDecorationLine: "underline",
+  colProduct: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 8 },
+  colQty: { width: 44, flexShrink: 0, textAlign: "center" },
+  colUom: { width: 50, flexShrink: 0, textAlign: "center" },
+  colAmount: { width: 72, flexShrink: 0, textAlign: "right" },
+  cellProductNameMain: { fontSize: 13, fontWeight: "700", color: "#292524" },
+  cellProductNameSub: { fontSize: 12, color: "#57534e" },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+    paddingHorizontal: 4,
   },
-  cellProductNameAuto: { fontSize: 12, color: "#57534e", paddingLeft: 4 },
-  confirmBtn: {
+  totalLabel: { fontSize: 16, fontWeight: "700" },
+  totalValue: { fontSize: 18, fontWeight: "700", color: "#c41e3a" },
+  acceptBtn: {
     marginTop: 16,
     backgroundColor: "#1e3a8a",
     borderRadius: 999,
     paddingVertical: 14,
     alignItems: "center",
   },
-  confirmBtnDisabled: { opacity: 0.6 },
-  confirmBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  acceptBtnDisabled: { opacity: 0.5 },
+  acceptBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

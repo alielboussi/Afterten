@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin-server";
+import { DailyPickSendButton } from "./DailyPickSendButton";
+import { DeleteAllOrdersButton } from "./DeleteAllOrdersButton";
 import { OrdersTable, type PortalOrderRow } from "./OrdersTable";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,11 @@ function formatCreated(iso: string): string {
   }).format(new Date(iso));
 }
 
+function formatPhaseWhen(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return formatCreated(iso);
+}
+
 export default async function OutletOrdersPage() {
   let orders: PortalOrderRow[] = [];
   let loadError: string | null = null;
@@ -31,7 +38,7 @@ export default async function OutletOrdersPage() {
     const { data, error } = await admin
       .from("outlet_orders")
       .select(
-        "id, order_number, outlet_id, outlet_name, status, grand_total, created_at",
+        "id, order_number, outlet_id, outlet_name, status, grand_total, created_at, supervisor_accepted_at, loaded_at, completed_at",
       )
       .order("created_at", { ascending: false })
       .limit(500);
@@ -45,7 +52,10 @@ export default async function OutletOrdersPage() {
       outlet_name: String(row.outlet_name),
       status: String(row.status),
       grand_total_label: formatKwacha(Number(row.grand_total)),
-      created_at_label: formatCreated(String(row.created_at)),
+      placed_at_label: formatPhaseWhen(row.created_at as string),
+      accepted_at_label: formatPhaseWhen(row.supervisor_accepted_at as string | null),
+      loaded_at_label: formatPhaseWhen(row.loaded_at as string | null),
+      received_at_label: formatPhaseWhen(row.completed_at as string | null),
     }));
   } catch (e) {
     loadError = e instanceof Error ? e.message : "Could not load orders.";
@@ -53,11 +63,20 @@ export default async function OutletOrdersPage() {
 
   return (
     <div className="at-page-shell-table">
-      <h1 className="at-page-title">Outlet orders</h1>
-      <p className="at-page-lead">
-        All outlet orders with current status. Download PDFs or resend WhatsApp group alerts
-        (accepted when supervisor approved; dispatched after driver handoff).
-      </p>
+      <div className="at-ordersPageHeader">
+        <div className="at-ordersPageHeaderMain">
+          <h1 className="at-page-title">Outlet orders</h1>
+          <p className="at-page-lead">
+            Every order phase (placed → accepted → dispatched → received) with PDF downloads for each
+            stage. WhatsApp resend: accepted after supervisor approval; dispatched after driver
+            handoff.
+          </p>
+        </div>
+        <div className="at-ordersPageHeaderActions">
+          <DailyPickSendButton />
+          <DeleteAllOrdersButton />
+        </div>
+      </div>
 
       {loadError ? <p className="at-page-msgErr">{loadError}</p> : null}
 

@@ -61,17 +61,26 @@ function mapCatalogBriefs(raw: unknown): Map<string, CatalogProductBrief> {
   return map;
 }
 
+let rulesContextCache: { ctx: OrderRulesContext; fetchedAt: number } | null = null;
+const RULES_CTX_TTL_MS = 30 * 60 * 1000;
+
 export async function fetchOrderRulesContext(
   supabase: SupabaseClient,
 ): Promise<OrderRulesContext> {
+  const now = Date.now();
+  if (rulesContextCache && now - rulesContextCache.fetchedAt < RULES_CTX_TTL_MS) {
+    return rulesContextCache.ctx;
+  }
   const { data: rulesRaw, error: rulesErr } = await supabase.rpc("list_outlet_order_rules");
   if (rulesErr) {
-    return { rules: [], catalogById: new Map() };
+    return rulesContextCache?.ctx ?? { rules: [], catalogById: new Map() };
   }
   const rules = parseRules(rulesRaw);
   const addedIds = [...new Set(rules.map((r) => r.added_product_id))];
   if (addedIds.length === 0) {
-    return { rules, catalogById: new Map() };
+    const ctx = { rules, catalogById: new Map() };
+    rulesContextCache = { ctx, fetchedAt: Date.now() };
+    return ctx;
   }
   const { data: catalogRaw, error: catalogErr } = await supabase.rpc("resolve_catalog_products", {
     p_product_ids: addedIds,
@@ -79,7 +88,9 @@ export async function fetchOrderRulesContext(
   if (catalogErr) {
     return { rules, catalogById: new Map() };
   }
-  return { rules, catalogById: mapCatalogBriefs(catalogRaw) };
+  const ctx = { rules, catalogById: mapCatalogBriefs(catalogRaw) };
+  rulesContextCache = { ctx, fetchedAt: Date.now() };
+  return ctx;
 }
 
 function appendAutoRows(

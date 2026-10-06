@@ -7,16 +7,13 @@ import {
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatKwacha, formatOrderDate } from "../lib/currency";
-import { downloadApprovedOrderPdf } from "../lib/approved-order-pdf";
 
 type Props = {
   supabase: SupabaseClient;
   orderId: string;
   onBack: () => void;
-  onToast: (message: string) => void;
   contentPaddingBottom: number;
 };
 
@@ -26,11 +23,9 @@ export function OutletAcceptedOrderDetailScreen({
   supabase,
   orderId,
   onBack,
-  onToast,
   contentPaddingBottom,
 }: Props) {
   const [loading, setLoading] = useState(true);
-  const [pdfBusy, setPdfBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState("");
   const [outletName, setOutletName] = useState("");
@@ -77,14 +72,6 @@ export function OutletAcceptedOrderDetailScreen({
     };
   }, [orderId, supabase]);
 
-  async function onPdf() {
-    setPdfBusy(true);
-    onToast("Preparing PDF…");
-    const result = await downloadApprovedOrderPdf(supabase, orderId);
-    setPdfBusy(false);
-    onToast(result.ok ? `Downloaded ${result.fileName}` : result.error);
-  }
-
   if (loading) {
     return (
       <View style={styles.loadingWrap}>
@@ -95,18 +82,9 @@ export function OutletAcceptedOrderDetailScreen({
 
   return (
     <View style={styles.root}>
-      <View style={styles.topRow}>
-        <Pressable onPress={onBack}>
-          <Text style={styles.backLinkText}>← Back</Text>
-        </Pressable>
-        <Pressable onPress={() => void onPdf()} hitSlop={8} accessibilityLabel="Download PDF">
-          {pdfBusy ? (
-            <ActivityIndicator size="small" color="#1e3a8a" />
-          ) : (
-            <Ionicons name="document-outline" size={26} color="#1e3a8a" />
-          )}
-        </Pressable>
-      </View>
+      <Pressable onPress={onBack} style={{ marginBottom: 8, alignSelf: "flex-start" }}>
+        <Text style={styles.backLinkText}>← Back</Text>
+      </Pressable>
 
       <ScrollView contentContainerStyle={{ paddingBottom: contentPaddingBottom }}>
         <View style={styles.headerBlock}>

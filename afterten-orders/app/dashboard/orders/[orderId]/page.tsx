@@ -34,7 +34,7 @@ export default async function PortalOrderDetailPage({ params }: PageProps) {
   const { data: order, error: orderErr } = await admin
     .from("outlet_orders")
     .select(
-      "id, order_number, outlet_id, outlet_name, status, employee_name, grand_total, created_at, supervisor_accepted_at, loaded_at, updated_at, driver_id, outlets(active)",
+      "id, order_number, outlet_id, outlet_name, status, employee_name, grand_total, created_at, supervisor_accepted_at, supervisor_accepted_alias, loaded_at, completed_at, offloader_name, updated_at, driver_id, outlets(active)",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -63,6 +63,15 @@ export default async function PortalOrderDetailPage({ params }: PageProps) {
     new Date(order.updated_at).getTime() - new Date(order.supervisor_accepted_at).getTime() >
       2000;
 
+  const status = String(order.status);
+  const canApproved = status === "accepted" || status === "loaded" || status === "completed";
+  const canHandoff = status === "loaded" || status === "completed";
+  const canCompleted = status === "completed";
+
+  function pdfHref(kind: "placed" | "approved" | "handoff" | "completed") {
+    return `/api/portal/orders/pdf?orderId=${encodeURIComponent(orderId)}&kind=${kind}`;
+  }
+
   return (
     <div className="at-page-shell-table">
       <Link href="/dashboard/orders" className="at-backLink">
@@ -81,8 +90,14 @@ export default async function PortalOrderDetailPage({ params }: PageProps) {
           <dd>{formatWhen(order.created_at)}</dd>
           <dt>Accepted</dt>
           <dd>{formatWhen(order.supervisor_accepted_at)}</dd>
-          <dt>Loaded</dt>
+          <dt>Dispatched (loaded)</dt>
           <dd>{formatWhen(order.loaded_at)}</dd>
+          <dt>Received (completed)</dt>
+          <dd>{formatWhen(order.completed_at)}</dd>
+          <dt>Accepted by</dt>
+          <dd>{order.supervisor_accepted_alias?.trim() || "—"}</dd>
+          <dt>Received by</dt>
+          <dd>{order.offloader_name?.trim() || "—"}</dd>
           <dt>Placed by</dt>
           <dd>{order.employee_name?.trim() || "—"}</dd>
           <dt>Grand total</dt>
@@ -94,6 +109,26 @@ export default async function PortalOrderDetailPage({ params }: PageProps) {
           <dt>Supervisor revised</dt>
           <dd>{revised ? "Yes" : "No"}</dd>
         </dl>
+        <div className="at-orderDetailPdfRow">
+          <a className="at-btnSecondary at-btnCompact" href={pdfHref("placed")}>
+            Original PDF
+          </a>
+          {canApproved ? (
+            <a className="at-btnSecondary at-btnCompact" href={pdfHref("approved")}>
+              Approved PDF
+            </a>
+          ) : null}
+          {canHandoff ? (
+            <a className="at-btnSecondary at-btnCompact" href={pdfHref("handoff")}>
+              Handoff PDF
+            </a>
+          ) : null}
+          {canCompleted ? (
+            <a className="at-btnSecondary at-btnCompact" href={pdfHref("completed")}>
+              Completed PDF
+            </a>
+          ) : null}
+        </div>
       </div>
 
       <div className="at-page-card">

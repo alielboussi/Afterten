@@ -20,13 +20,14 @@ import {
   getSupervisorAppReturnUri,
   getSupervisorSupabaseRedirectAllowlistHint,
 } from "./lib/supervisor-oauth-urls";
-import { downloadApprovedOrderPdf } from "./lib/approved-order-pdf";
 import { signInWithGoogle } from "./lib/google-auth";
 import { subscribeToNewOutletOrders } from "./lib/order-realtime";
 import { DeliveryLoadingChecklistScreen } from "./components/DeliveryLoadingChecklistScreen";
 import { DeliveryDriverHandoffScreen } from "./components/DeliveryDriverHandoffScreen";
 import { OrdersScreen } from "./components/OrdersScreen";
 import { SupervisorOrderDetailScreen } from "./components/SupervisorOrderDetailScreen";
+import { CompletedOrdersScreen } from "./components/CompletedOrdersScreen";
+import { CompletedOrderDetailScreen } from "./components/CompletedOrderDetailScreen";
 import { ToastBanner } from "./components/ToastBanner";
 
 type Screen =
@@ -38,7 +39,8 @@ type Screen =
   | "orderDetail"
   | "deliveryLoading"
   | "deliveryLoadingChecklist"
-  | "deliveryLoadingHandoff";
+  | "deliveryLoadingHandoff"
+  | "completedOrders";
 
 function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void }) {
   const insets = useSafeAreaInsets();
@@ -53,24 +55,15 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
   const [deliveryRefreshToken, setDeliveryRefreshToken] = useState(0);
   const [deliveryLoadingOrderId, setDeliveryLoadingOrderId] = useState<string | null>(null);
   const [deliveryToast, setDeliveryToast] = useState<string | null>(null);
+  const [completedOrderDetailId, setCompletedOrderDetailId] = useState<string | null>(null);
 
-  const finishOrderAcceptance = useCallback(
-    (acceptedOrderId: string) => {
-      setSelectedOrderId(null);
-      setScreen("orders");
-      setOrdersRefreshToken((t) => t + 1);
-      setActionToast("Order accepted. Preparing PDF…");
-      void (async () => {
-        const pdf = await downloadApprovedOrderPdf(supabase!, acceptedOrderId);
-        setActionToast(
-          pdf.ok
-            ? `Order accepted. PDF ready: ${pdf.fileName}`
-            : `Order accepted. PDF: ${pdf.error}`,
-        );
-      })();
-    },
-    [supabase],
-  );
+  const finishOrderAcceptance = useCallback((acceptedOrderId: string) => {
+    void acceptedOrderId;
+    setSelectedOrderId(null);
+    setScreen("orders");
+    setOrdersRefreshToken((t) => t + 1);
+    setActionToast("Order accepted.");
+  }, []);
 
   const bootstrap = useCallback(async () => {
     if (!supabase) {
@@ -253,6 +246,50 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
     );
   }
 
+  if (screen === "completedOrders" && supabase && profile?.approved) {
+    if (completedOrderDetailId) {
+      return (
+        <View
+          style={[
+            styles.home,
+            { paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: insets.bottom },
+          ]}
+        >
+          <CompletedOrderDetailScreen
+            supabase={supabase}
+            orderId={completedOrderDetailId}
+            onBack={() => setCompletedOrderDetailId(null)}
+            onToast={setActionToast}
+            contentPaddingBottom={contentPaddingBottom}
+          />
+          <ToastBanner message={actionToast} onDismiss={() => setActionToast(null)} />
+          <StatusBar style="auto" />
+        </View>
+      );
+    }
+    return (
+      <View
+        style={[
+          styles.home,
+          { paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: insets.bottom },
+        ]}
+      >
+        <CompletedOrdersScreen
+          supabase={supabase}
+          onBack={() => {
+            setCompletedOrderDetailId(null);
+            setScreen("home");
+          }}
+          onOpenDetail={(id) => setCompletedOrderDetailId(id)}
+          onToast={setActionToast}
+          contentPaddingBottom={contentPaddingBottom}
+        />
+        <ToastBanner message={actionToast} onDismiss={() => setActionToast(null)} />
+        <StatusBar style="auto" />
+      </View>
+    );
+  }
+
   if (screen === "orders" && supabase && profile?.approved) {
     return (
       <View
@@ -313,6 +350,13 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
             accessibilityRole="button"
           >
             <Text style={styles.showOrdersBtnText}>Delivery Loading</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.showOrdersBtn, styles.dashboardSecondBtn, busy && styles.primaryBtnDisabled]}
+            onPress={() => setScreen("completedOrders")}
+            accessibilityRole="button"
+          >
+            <Text style={styles.showOrdersBtnText}>Completed Orders</Text>
           </Pressable>
         </View>
         <StatusBar style="auto" />

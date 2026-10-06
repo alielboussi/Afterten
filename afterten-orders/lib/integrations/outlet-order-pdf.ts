@@ -222,6 +222,183 @@ export async function renderOutletOrderPdf(input: OrderPdfInput): Promise<Buffer
   });
 }
 
+export type CombinedOrderPdfInput = {
+  outletName: string;
+  outletId: string;
+  orderNumber: string;
+  placedAtLabel: string;
+  acceptedAtLabel: string;
+  loadedAtLabel: string;
+  completedAtLabel: string;
+  employeeName: string;
+  supervisorAlias: string;
+  driverName: string;
+  offloaderName: string;
+  grandTotalFormatted: string;
+  lines: OrderPdfLine[];
+  employeeSignaturePng: Buffer | null;
+  driverSignaturePng: Buffer | null;
+  offloaderSignaturePng: Buffer | null;
+};
+
+const LEGAL_DISCLAIMER =
+  "The above names and signatories show above, approve and witness that all information included in this document is accurate and liable for legal use.";
+
+function drawSignatureBlock(
+  doc: InstanceType<typeof PDFDocument>,
+  y: number,
+  sectionTitle: string,
+  whenLabel: string,
+  signerLabel: string,
+  signerName: string,
+  signaturePng: Buffer | null,
+): number {
+  doc.font("Helvetica-Bold").fontSize(11).fillColor("#292524");
+  doc.text(sectionTitle, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
+  y += 16;
+  if (whenLabel) {
+    doc.font("Helvetica").fontSize(10).fillColor("#57534e");
+    doc.text(whenLabel, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
+    y += 14;
+  }
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#57534e");
+  doc.text(signerLabel, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
+  y += 14;
+  doc.font("Helvetica-Bold").fontSize(16).fillColor("#292524");
+  doc.text(signerName, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
+  y += 22;
+
+  const boxX = CONTENT_LEFT + CONTENT_WIDTH * 0.12;
+  const boxW = CONTENT_WIDTH * 0.76;
+  const boxH = 72;
+  doc.lineWidth(1).strokeColor("#d6d3d1").rect(boxX, y, boxW, boxH).stroke();
+  if (signaturePng && signaturePng.length > 0) {
+    doc.image(signaturePng, boxX + 6, y + 4, {
+      fit: [boxW - 12, boxH - 8],
+      align: "center",
+      valign: "center",
+    });
+  }
+  return y + boxH + 20;
+}
+
+export async function renderCombinedOrderPdf(input: CombinedOrderPdfInput): Promise<Buffer> {
+  const logoBuf = await loadLogoPng();
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: "A4", margin: 0, bufferPages: true });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c) => chunks.push(c as Buffer));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    const ensureSpace = (y: number, needed: number, repeatHeader: boolean): number => {
+      if (y + needed <= contentBottomLimit()) return y;
+      doc.addPage();
+      let ny = PAD + BORDER_PT + 8;
+      if (repeatHeader) {
+        ny = drawTableHeader(doc, ny);
+      }
+      return ny;
+    };
+
+    if (logoBuf) {
+      doc.image(logoBuf, CONTENT_LEFT, PAD + BORDER_PT, { width: 72 });
+    }
+
+    const headerY = logoBuf ? PAD + BORDER_PT + 4 : PAD + BORDER_PT + 8;
+    doc.font("Helvetica-Bold").fontSize(11).fillColor("#1e3a8a");
+    const headerLines = [
+      input.outletName,
+      `Outlet code: ${input.outletId}`,
+      `Order no.: ${input.orderNumber}`,
+      input.placedAtLabel,
+    ];
+    let y = headerY;
+    for (const line of headerLines) {
+      doc.text(line, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
+      y += 14;
+    }
+
+    y = Math.max(y + 8, PAD + BORDER_PT + 78);
+    y = drawTableHeader(doc, y);
+
+    const rowHeight = 14;
+    doc.font("Helvetica").fontSize(9).fillColor("#292524");
+    for (const line of input.lines) {
+      y = ensureSpace(y, rowHeight + 4, true);
+      const colProduct = CONTENT_LEFT + (line.isSub ? 8 : 0);
+      doc.font(line.isSub ? "Helvetica" : "Helvetica-Bold");
+      doc.text(line.name, colProduct, y, { width: PDF_PRODUCT_COL_W - (line.isSub ? 8 : 0) });
+      doc.text(line.qty, PDF_COL_QTY_X, y, { width: CONTENT_WIDTH * 0.1, align: "center" });
+      doc.text(line.uom, PDF_COL_UOM_X, y, { width: CONTENT_WIDTH * 0.12, align: "center" });
+      doc.text(line.amount, PDF_COL_AMT_X, y, { width: CONTENT_WIDTH * 0.2, align: "right" });
+      y += rowHeight;
+    }
+
+    y = ensureSpace(y, 22, false);
+    y += 4;
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#292524");
+    doc.text("Total", PDF_COL_QTY_X, y);
+    doc.fillColor(RED).text(input.grandTotalFormatted, PDF_COL_AMT_X, y, {
+      width: CONTENT_WIDTH * 0.2,
+      align: "right",
+    });
+    y += 28;
+
+    y = ensureSpace(y, 160, false);
+    y = drawSignatureBlock(
+      doc,
+      y,
+      "Order placed",
+      "",
+      "Order placed by",
+      input.employeeName,
+      input.employeeSignaturePng,
+    );
+
+    y = ensureSpace(y, 120, false);
+    y = drawSignatureBlock(
+      doc,
+      y,
+      "Supervisor acceptance",
+      input.acceptedAtLabel,
+      "Accepted by",
+      input.supervisorAlias,
+      null,
+    );
+
+    y = ensureSpace(y, 160, false);
+    y = drawSignatureBlock(
+      doc,
+      y,
+      "Dispatch",
+      input.loadedAtLabel,
+      "Driver",
+      input.driverName,
+      input.driverSignaturePng,
+    );
+
+    y = ensureSpace(y, 160, false);
+    y = drawSignatureBlock(
+      doc,
+      y,
+      "Received at outlet",
+      input.completedAtLabel,
+      "Received by",
+      input.offloaderName,
+      input.offloaderSignaturePng,
+    );
+
+    y = ensureSpace(y, 80, false);
+    doc.font("Helvetica-Bold").fontSize(22).fillColor("#292524");
+    doc.text(LEGAL_DISCLAIMER, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
+
+    drawPageNumbers(doc);
+    doc.end();
+  });
+}
+
 async function loadAutoAddedProductIds(admin: SupabaseClient): Promise<Set<string>> {
   const { data: rules, error: rulesErr } = await admin
     .from("product_order_rules")
@@ -636,6 +813,146 @@ export async function generateAndStoreDriverHandoffPdf(
   const { error: updateErr } = await admin
     .from("outlet_orders")
     .update({ handoff_pdf_path: pdfPath, updated_at: new Date().toISOString() })
+    .eq("id", orderId);
+  if (updateErr) return { ok: false, error: updateErr.message };
+
+  return { ok: true, pdfPath, fileName };
+}
+
+function formatKitwePdfLabel(iso: string | null | undefined, prefix?: string): string {
+  if (!iso) return "—";
+  const label = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Lusaka",
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+  return prefix ? `${prefix} ${label} (Kitwe)` : `${label} (Kitwe)`;
+}
+
+export async function generateAndStoreCompletedOrderPdf(
+  admin: SupabaseClient,
+  orderId: string,
+): Promise<{ ok: true; pdfPath: string; fileName: string } | { ok: false; error: string }> {
+  const { data: order, error: orderErr } = await admin
+    .from("outlet_orders")
+    .select(
+      "id, outlet_id, outlet_name, order_number, employee_name, employee_signature_path, grand_total, created_at, status, supervisor_accepted_at, supervisor_accepted_alias, loaded_at, driver_id, driver_signature_path, completed_at, offloader_name, offloader_signature_path, completed_pdf_path",
+    )
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (orderErr) return { ok: false, error: orderErr.message };
+  if (!order) return { ok: false, error: "Order not found." };
+  if (String(order.status) !== "completed") {
+    return { ok: false, error: "Order is not completed yet." };
+  }
+
+  const existingPath =
+    typeof order.completed_pdf_path === "string" && order.completed_pdf_path.trim()
+      ? order.completed_pdf_path.trim()
+      : null;
+  if (existingPath) {
+    const existingKey = existingPath.replace(/^completed-orders\//, "");
+    const { data: existingFile, error: existingErr } = await admin.storage
+      .from("completed-orders")
+      .download(existingKey);
+    if (!existingErr && existingFile) {
+      const fileName = existingKey.split("/").pop() ?? "order.pdf";
+      return { ok: true, pdfPath: existingPath, fileName };
+    }
+  }
+
+  const { data: driver } = await admin
+    .from("delivery_drivers")
+    .select("name")
+    .eq("id", order.driver_id as string)
+    .maybeSingle();
+
+  const { data: items, error: itemsErr } = await admin
+    .from("outlet_order_items")
+    .select("product_id, name, qty, uom, line_total, sort_order")
+    .eq("order_id", orderId)
+    .order("sort_order", { ascending: true });
+  if (itemsErr) return { ok: false, error: itemsErr.message };
+
+  const autoAddedIds = await loadAutoAddedProductIds(admin);
+  const grandTotal = Number(order.grand_total ?? 0);
+
+  const lines: OrderPdfLine[] = (items ?? []).map((row) => {
+    const qty = Number(row.qty ?? 0);
+    const lt = Number(row.line_total ?? 0);
+    const pid = String(row.product_id ?? "").toLowerCase();
+    return {
+      name: String(row.name ?? ""),
+      qty: Number.isInteger(qty) ? String(qty) : qty.toFixed(2),
+      uom: String(row.uom ?? ""),
+      amount: lt > 0 ? formatKwacha(lt) : "",
+      isSub: autoAddedIds.has(pid),
+    };
+  });
+
+  const [employeeSignaturePng, driverSignaturePng, offloaderSignaturePng] = await Promise.all([
+    loadSignaturePng(admin, order.employee_signature_path as string | null),
+    loadDriverSignaturePng(admin, order.driver_signature_path as string | null),
+    loadSignaturePng(admin, order.offloader_signature_path as string | null),
+  ]);
+
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await renderCombinedOrderPdf({
+      outletName: String(order.outlet_name),
+      outletId: String(order.outlet_id),
+      orderNumber: String(order.order_number),
+      placedAtLabel: formatKitwePdfLabel(order.created_at as string),
+      acceptedAtLabel: formatKitwePdfLabel(order.supervisor_accepted_at as string, "Accepted"),
+      loadedAtLabel: formatKitwePdfLabel(
+        (order.loaded_at as string) ?? (order.created_at as string),
+        "Dispatched",
+      ),
+      completedAtLabel: formatKitwePdfLabel(order.completed_at as string, "Completed"),
+      employeeName: String(order.employee_name ?? "").trim() || "—",
+      supervisorAlias: String(order.supervisor_accepted_alias ?? "").trim() || "Supervisor",
+      driverName: String(driver?.name ?? "Driver"),
+      offloaderName: String(order.offloader_name ?? "").trim() || "—",
+      grandTotalFormatted: formatKwacha(grandTotal),
+      lines,
+      employeeSignaturePng,
+      driverSignaturePng,
+      offloaderSignaturePng,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "PDF render failed.";
+    return { ok: false, error: msg };
+  }
+
+  const fileName = buildOrderPdfFileName(
+    String(order.outlet_name),
+    `${String(order.order_number)}_completed`,
+    new Date((order.completed_at as string) ?? (order.created_at as string)),
+  );
+  const storageKey = `${order.outlet_id}/${order.id}/${fileName}`;
+  const pdfPath = `completed-orders/${storageKey}`;
+
+  const { error: uploadErr } = await admin.storage
+    .from("completed-orders")
+    .upload(storageKey, new Uint8Array(pdfBuffer), {
+      contentType: "application/pdf",
+      upsert: true,
+      cacheControl: "3600",
+    });
+  if (uploadErr) {
+    return { ok: false, error: `Storage upload failed: ${uploadErr.message}.` };
+  }
+
+  const { error: updateErr } = await admin
+    .from("outlet_orders")
+    .update({ completed_pdf_path: pdfPath, updated_at: new Date().toISOString() })
     .eq("id", orderId);
   if (updateErr) return { ok: false, error: updateErr.message };
 
