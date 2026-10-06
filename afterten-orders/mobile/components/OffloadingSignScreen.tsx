@@ -10,13 +10,14 @@ import {
 } from "react-native";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SignaturePad, type SignaturePadHandle } from "./SignaturePad";
-import { formatPersonName, formatPersonNameInput, isValidPersonName } from "../lib/person-name";
 import { downloadCompletedOrderPdf } from "../lib/completed-order-pdf";
 import { completeOutletOrder, fetchOffloadingOrderDetail } from "../lib/offloading";
 import {
   enqueueOfflineComplete,
   isLikelyNetworkError,
 } from "../lib/offline-complete-queue";
+import { fetchOutletEmployeesForApp, type OutletEmployeeOption } from "../lib/outlet-employees";
+import { verifyOutletEmployeePasscode } from "../lib/verify-outlet-employee-passcode";
 import { uploadOffloaderSignature } from "../lib/signature-upload";
 
 type Props = {
@@ -41,39 +42,90 @@ export function OffloadingSignScreen({
   const [orderNumber, setOrderNumber] = useState("");
   const [outletName, setOutletName] = useState("");
   const [outletId, setOutletId] = useState("");
-  const [receiverName, setReceiverName] = useState("");
+  const [supervisorLabel, setSupervisorLabel] = useState("Supervisor");
+  const [employees, setEmployees] = useState<OutletEmployeeOption[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [selectedEmployeeName, setSelectedEmployeeName] = useState("");
+  const [passcode, setPasscode] = useState("");
+  const [passcodeVerified, setPasscodeVerified] = useState(false);
+  const [passcodeVerifyError, setPasscodeVerifyError] = useState<string | null>(null);
+  const [passcodeVerifying, setPasscodeVerifying] = useState(false);
   const [signatureValid, setSignatureValid] = useState(false);
+
+  function resetPasscodeVerification() {
+    setPasscodeVerified(false);
+    setPasscodeVerifyError(null);
+    setSignatureValid(false);
+    signatureRef.current?.clear();
+  }
+
+  async function verifyPasscodeForSelectedEmployee() {
+    if (!selectedEmployeeId || passcode.trim().length < 4) {
+      resetPasscodeVerification();
+      return;
+    }
+    setPasscodeVerifying(true);
+    setPasscodeVerifyError(null);
+    const result = await verifyOutletEmployeePasscode(supabase, selectedEmployeeId, passcode);
+    setPasscodeVerifying(false);
+    if (!result.ok) {
+      resetPasscodeVerification();
+      setPasscodeVerifyError(result.error);
+      return;
+    }
+    if (result.displayName) {
+      setSelectedEmployeeName(result.displayName);
+    }
+    setPasscodeVerified(true);
+    setPasscodeVerifyError(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { detail, error: loadErr } = await fetchOffloadingOrderDetail(supabase, orderId);
+      const [detailRes, empRes] = await Promise.all([
+        fetchOffloadingOrderDetail(supabase, orderId),
+        fetchOutletEmployeesForApp(supabase),
+      ]);
       if (cancelled) return;
       setLoading(false);
-      if (!detail) {
-        setError(loadErr ?? "Could not load order.");
+      setEmployeesLoading(false);
+      if (!detailRes.detail) {
+        setError(detailRes.error ?? "Could not load order.");
         return;
       }
-      if (!detail.offloading_checklist_completed_at) {
+      if (!detailRes.detail.offloading_checklist_completed_at) {
         setError("Confirm all items received first.");
         return;
       }
-      setOrderNumber(detail.order_number);
-      setOutletName(detail.outlet_name);
-      setOutletId(detail.outlet_id);
+      setOrderNumber(detailRes.detail.order_number);
+      setOutletName(detailRes.detail.outlet_name);
+      setOutletId(detailRes.detail.outlet_id);
+      setSupervisorLabel(detailRes.detail.supervisor_accepted_alias?.trim() || "Supervisor");
+      if (empRes.ok) {
+        setEmployees(empRes.employees);
+        if (empRes.employees.length === 1) {
+          setSelectedEmployeeId(empRes.employees[0].id);
+          setSelectedEmployeeName(empRes.employees[0].displayName);
+        }
+      } else {
+        setError(empRes.error);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, [orderId, supabase]);
 
-  const nameOk = isValidPersonName(receiverName);
-  const canComplete = nameOk && signatureValid && !busy;
+  const passcodeOk = passcodeVerified;
+  const employeeOk = Boolean(selectedEmployeeId);
+  const canComplete = employeeOk && passcodeOk && signatureValid && !busy && !passcodeVerifying;
 
   async function onCompleteOrder() {
-    if (!nameOk) {
-      setError("Enter your full name.");
+    if (!selectedEmployeeId) {
+      setError("Select an employee.");
       return;
     }
     if (!signatureRef.current?.isValid()) {
@@ -88,7 +140,12 @@ export function OffloadingSignScreen({
       setError("Could not read signature.");
       return;
     }
-    const uploaded = await uploadOffloaderSignature(supabase, outletId, orderId, pngUri);
+    const uploaded = await uploadOffloaderSignature(supabase, outletId, orderId, pngUri, {
+      outletName,
+      offloaderName: selectedEmployeeName,
+      supervisorLabel,
+      orderNumber,
+    });
     if ("error" in uploaded) {
       setBusy(false);
       setError(uploaded.error);
@@ -97,7 +154,8 @@ export function OffloadingSignScreen({
     const done = await completeOutletOrder(
       supabase,
       orderId,
-      formatPersonName(receiverName),
+      selectedEmployeeId,
+      passcode.trim(),
       uploaded.dbPath,
     );
     if (done.error) {
@@ -105,7 +163,12 @@ export function OffloadingSignScreen({
         await enqueueOfflineComplete({
           orderId,
           outletId,
-          offloaderName: formatPersonName(receiverName),
+          outletEmployeeId: selectedEmployeeId,
+          employeePasscode: passcode.trim(),
+          offloaderName: selectedEmployeeName,
+          supervisorLabel,
+          orderNumber,
+          outletName,
           signatureLocalUri: pngUri,
         });
         setBusy(false);
@@ -145,20 +208,73 @@ export function OffloadingSignScreen({
 
       <ScrollView contentContainerStyle={{ paddingBottom: contentPaddingBottom }}>
         <Text style={styles.fieldLabel}>Received by</Text>
-        <TextInput
-          style={styles.nameInput}
-          value={receiverName}
-          onChangeText={(text) => setReceiverName(formatPersonNameInput(text))}
-          onBlur={() => setReceiverName(formatPersonName(receiverName))}
-          placeholder="Full name"
-          placeholderTextColor="#a8a29e"
-          autoCapitalize="words"
-          autoCorrect={false}
-          editable={!busy}
-        />
+        {employeesLoading ? (
+          <ActivityIndicator color="#c41e3a" />
+        ) : employees.length === 0 ? (
+          <Text style={styles.error}>No employees configured in the portal.</Text>
+        ) : (
+          <View style={styles.employeeList}>
+            {employees.map((emp) => {
+              const selected = emp.id === selectedEmployeeId;
+              return (
+                <Pressable
+                  key={emp.id}
+                  style={[styles.employeeRow, selected && styles.employeeRowSelected]}
+                  onPress={() => {
+                    setSelectedEmployeeId(emp.id);
+                    setSelectedEmployeeName(emp.displayName);
+                    setPasscode("");
+                    resetPasscodeVerification();
+                  }}
+                  disabled={busy}
+                >
+                  <Text style={[styles.employeeText, selected && styles.employeeTextSelected]}>
+                    {emp.displayName}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
-        <Text style={styles.fieldLabel}>Signature</Text>
-        <SignaturePad ref={signatureRef} disabled={busy} onValidityChange={setSignatureValid} />
+        {selectedEmployeeId ? (
+          <>
+            <Text style={styles.fieldLabel}>Passcode</Text>
+            <TextInput
+              style={styles.nameInput}
+              value={passcode}
+              onChangeText={(text) => {
+                setPasscode(text);
+                resetPasscodeVerification();
+              }}
+              onBlur={() => void verifyPasscodeForSelectedEmployee()}
+              secureTextEntry
+              keyboardType="number-pad"
+              editable={!busy && !passcodeVerifying}
+              placeholder="Enter passcode"
+              placeholderTextColor="#a8a29e"
+            />
+            {passcodeVerifying ? <ActivityIndicator style={{ marginTop: 8 }} color="#c41e3a" /> : null}
+            {passcodeVerifyError ? (
+              <Text style={styles.error}>{passcodeVerifyError}</Text>
+            ) : passcodeVerified ? (
+              <Text style={styles.passcodeOkHint}>Passcode accepted — you may sign below.</Text>
+            ) : passcode.trim().length >= 4 ? (
+              <Text style={styles.hintMuted}>Leave the field to verify your passcode.</Text>
+            ) : null}
+          </>
+        ) : null}
+
+        {passcodeVerified ? (
+          <>
+            <Text style={styles.fieldLabel}>Signature</Text>
+            <SignaturePad ref={signatureRef} disabled={busy} onValidityChange={setSignatureValid} />
+          </>
+        ) : (
+          <Text style={styles.signatureLocked}>
+            Select an employee and enter a valid passcode before signing.
+          </Text>
+        )}
 
         {error ? (
           <Text style={styles.error} accessibilityRole="alert">
@@ -190,6 +306,23 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "700", color: "#1e3a8a", textAlign: "center" },
   subtitle: { fontSize: 13, color: "#57534e", textAlign: "center", marginBottom: 12 },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: "#292524", marginTop: 12 },
+  employeeList: {
+    marginTop: 8,
+    maxHeight: 160,
+    borderWidth: 1,
+    borderColor: "#d6d3d1",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  employeeRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e7e5e4",
+  },
+  employeeRowSelected: { backgroundColor: "#fef2f2" },
+  employeeText: { fontSize: 15, color: "#292524" },
+  employeeTextSelected: { color: "#c41e3a", fontWeight: "700" },
   nameInput: {
     marginTop: 8,
     borderWidth: 1,
@@ -201,6 +334,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   error: { color: "#b91c1c", marginTop: 12, lineHeight: 20 },
+  hintMuted: { marginTop: 8, fontSize: 12, color: "#78716c" },
+  passcodeOkHint: { marginTop: 8, fontSize: 13, color: "#166534", fontWeight: "600" },
+  signatureLocked: {
+    marginTop: 16,
+    fontSize: 13,
+    color: "#78716c",
+    textAlign: "center",
+    lineHeight: 18,
+  },
   completeBtn: {
     marginTop: 20,
     backgroundColor: "#c41e3a",

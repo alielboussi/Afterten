@@ -90,6 +90,12 @@ export function OutletUsersTable({ staff }: { staff: OutletStaffRow[] }) {
                     >
                       Products
                     </Link>
+                    <Link
+                      href={`/dashboard/outlet-users/${s.userId}/employees`}
+                      className={styles.employeesBtn}
+                    >
+                      Employees
+                    </Link>
                     <Link href={`/dashboard/outlet-users/${s.userId}/edit`} className={styles.editBtn}>
                       Edit
                     </Link>

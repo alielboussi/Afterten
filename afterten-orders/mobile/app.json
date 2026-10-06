@@ -30,6 +30,12 @@
       "expo-font",
       "expo-sharing",
       [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow Afterten to photograph product returns."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",

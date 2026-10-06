@@ -22,21 +22,28 @@ export function AddDriverForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-      <label style={{ flex: "1 1 220px" }}>
-        <span className="at-fieldLabel">Driver name</span>
-        <input
-          className="at-input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. John Banda"
-          disabled={pending}
-        />
-      </label>
-      <button type="submit" className="at-btnPrimary" disabled={pending || name.trim().length < 2}>
-        {pending ? "Adding…" : "Add driver"}
-      </button>
-      {error ? <p className="at-page-msgErr" style={{ width: "100%" }}>{error}</p> : null}
+    <form className="at-form-section" onSubmit={onSubmit}>
+      <div className="at-driverAddRow">
+        <label className="at-form-label at-driverAddField">
+          Driver name
+          <input
+            className="at-form-input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. John Banda"
+            disabled={pending}
+            autoComplete="off"
+          />
+        </label>
+        <button
+          type="submit"
+          className="at-form-submitBtn"
+          disabled={pending || name.trim().length < 2}
+        >
+          {pending ? "Adding…" : "Add driver"}
+        </button>
+      </div>
+      {error ? <p className="at-page-msgErr">{error}</p> : null}
     </form>
   );
 }

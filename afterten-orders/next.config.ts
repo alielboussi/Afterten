@@ -13,6 +13,7 @@ const PDF_API_ROUTES = [
   "/api/outlet-app/ensure-approved-order-pdf",
   "/api/outlet-app/ensure-driver-handoff-pdf",
   "/api/outlet-app/ensure-completed-order-pdf",
+  "/api/outlet-app/ensure-return-pdf",
   "/api/webhooks/outlet-order-placed",
   "/api/webhooks/supervisor-order-accepted",
   "/api/webhooks/driver-handoff-pdf",

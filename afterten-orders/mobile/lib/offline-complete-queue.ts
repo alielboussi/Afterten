@@ -3,15 +3,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { completeOutletOrder } from "./offloading";
 import { downloadCompletedOrderPdf } from "./completed-order-pdf";
 import { uploadOffloaderSignature } from "./signature-upload";
-import { formatPersonName } from "./person-name";
 
-const STORAGE_KEY = "afterten:offline-complete-queue:v1";
+const STORAGE_KEY = "afterten:offline-complete-queue:v2";
 
 export type OfflineCompleteJob = {
   id: string;
   orderId: string;
   outletId: string;
+  outletEmployeeId: string;
+  employeePasscode: string;
   offloaderName: string;
+  supervisorLabel: string;
+  orderNumber: string;
+  outletName: string;
   signatureLocalUri: string;
   createdAt: string;
 };
@@ -57,6 +61,12 @@ export async function flushOfflineCompleteQueue(
       job.outletId,
       job.orderId,
       job.signatureLocalUri,
+      {
+        outletName: job.outletName,
+        offloaderName: job.offloaderName,
+        supervisorLabel: job.supervisorLabel,
+        orderNumber: job.orderNumber,
+      },
     );
     if ("error" in uploaded) {
       errors.push(uploaded.error);
@@ -66,7 +76,8 @@ export async function flushOfflineCompleteQueue(
     const done = await completeOutletOrder(
       supabase,
       job.orderId,
-      formatPersonName(job.offloaderName),
+      job.outletEmployeeId,
+      job.employeePasscode,
       uploaded.dbPath,
     );
     if (done.error) {

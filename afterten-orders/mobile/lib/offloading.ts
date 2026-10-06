@@ -25,6 +25,7 @@ export type OffloadingOrderDetail = {
   grand_total: number;
   loaded_at: string | null;
   offloading_checklist_completed_at: string | null;
+  supervisor_accepted_alias: string | null;
   lines: OffloadingLine[];
   groups: OffloadingDisplayGroup[];
 };
@@ -98,6 +99,8 @@ export async function fetchOffloadingOrderDetail(
         o.offloading_checklist_completed_at != null
           ? String(o.offloading_checklist_completed_at)
           : null,
+      supervisor_accepted_alias:
+        o.supervisor_accepted_alias != null ? String(o.supervisor_accepted_alias) : null,
       lines,
       groups,
     },
@@ -120,12 +123,14 @@ export async function confirmOffloadingChecklist(
 export async function completeOutletOrder(
   supabase: SupabaseClient,
   orderId: string,
-  offloaderName: string,
+  outletEmployeeId: string,
+  employeePasscode: string,
   offloaderSignaturePath: string,
 ): Promise<{ error: string | null }> {
   const { error } = await supabase.rpc("complete_outlet_order", {
     p_order_id: orderId,
-    p_offloader_name: offloaderName,
+    p_outlet_employee_id: outletEmployeeId,
+    p_employee_passcode: employeePasscode.trim(),
     p_offloader_signature_path: offloaderSignaturePath,
   });
   return { error: error?.message ?? null };

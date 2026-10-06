@@ -30,6 +30,8 @@ import { OrdersScreen } from "./components/OrdersScreen";
 import { SupervisorOrderDetailScreen } from "./components/SupervisorOrderDetailScreen";
 import { CompletedOrdersScreen } from "./components/CompletedOrdersScreen";
 import { CompletedOrderDetailScreen } from "./components/CompletedOrderDetailScreen";
+import { SupervisorReturnDetailScreen } from "./components/SupervisorReturnDetailScreen";
+import { SupervisorReturnsScreen } from "./components/SupervisorReturnsScreen";
 import { ToastBanner } from "./components/ToastBanner";
 
 type Screen =
@@ -42,7 +44,9 @@ type Screen =
   | "deliveryLoading"
   | "deliveryLoadingChecklist"
   | "deliveryLoadingHandoff"
-  | "completedOrders";
+  | "completedOrders"
+  | "returns"
+  | "returnDetail";
 
 function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void }) {
   const insets = useSafeAreaInsets();
@@ -58,6 +62,8 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
   const [deliveryLoadingOrderId, setDeliveryLoadingOrderId] = useState<string | null>(null);
   const [deliveryToast, setDeliveryToast] = useState<string | null>(null);
   const [completedOrderDetailId, setCompletedOrderDetailId] = useState<string | null>(null);
+  const [selectedReturnId, setSelectedReturnId] = useState<string | null>(null);
+  const [returnsRefreshToken, setReturnsRefreshToken] = useState(0);
 
   const finishOrderAcceptance = useCallback((acceptedOrderId: string) => {
     void acceptedOrderId;
@@ -191,6 +197,7 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
         <DeliveryDriverHandoffScreen
           supabase={supabase}
           orderId={deliveryLoadingOrderId}
+          supervisorLabel={supervisorDisplayName(profile)}
           onBack={() => {
             setDeliveryLoadingOrderId(null);
             setScreen("deliveryLoading");
@@ -314,6 +321,58 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
     );
   }
 
+  if (screen === "returnDetail" && supabase && profile?.approved && selectedReturnId) {
+    return (
+      <View
+        style={[
+          styles.home,
+          { paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: insets.bottom },
+        ]}
+      >
+        <SupervisorReturnDetailScreen
+          supabase={supabase}
+          returnId={selectedReturnId}
+          onBack={() => {
+            setSelectedReturnId(null);
+            setScreen("returns");
+          }}
+          onDecided={(message) => {
+            setSelectedReturnId(null);
+            setReturnsRefreshToken((t) => t + 1);
+            setActionToast(message);
+            setScreen("returns");
+          }}
+          contentPaddingBottom={contentPaddingBottom}
+        />
+        <ToastBanner message={actionToast} onDismiss={() => setActionToast(null)} />
+        <StatusBar style="auto" />
+      </View>
+    );
+  }
+
+  if (screen === "returns" && supabase && profile?.approved) {
+    return (
+      <View
+        style={[
+          styles.home,
+          { paddingTop: insets.top + 8, paddingHorizontal: 18, paddingBottom: insets.bottom },
+        ]}
+      >
+        <SupervisorReturnsScreen
+          supabase={supabase}
+          onBack={() => setScreen("home")}
+          contentPaddingBottom={contentPaddingBottom}
+          refreshToken={returnsRefreshToken}
+          onOpenReturn={(id) => {
+            setSelectedReturnId(id);
+            setScreen("returnDetail");
+          }}
+        />
+        <StatusBar style="auto" />
+      </View>
+    );
+  }
+
   if (screen === "orders" && supabase && profile?.approved) {
     return (
       <View
@@ -374,6 +433,13 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
             accessibilityRole="button"
           >
             <Text style={styles.showOrdersBtnText}>Delivery Loading</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.showOrdersBtn, styles.dashboardSecondBtn, busy && styles.primaryBtnDisabled]}
+            onPress={() => setScreen("returns")}
+            accessibilityRole="button"
+          >
+            <Text style={styles.showOrdersBtnText}>Returns</Text>
           </Pressable>
           <Pressable
             style={[styles.showOrdersBtn, styles.dashboardSecondBtn, busy && styles.primaryBtnDisabled]}

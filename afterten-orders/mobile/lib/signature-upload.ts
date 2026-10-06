@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { buildOffloaderSignatureFileName } from "./signature-file-name";
 
 /**
  * Encodes a captured PNG signature as WebP for upload (Expo has no on-device AVIF encoder).
@@ -51,8 +52,20 @@ export async function uploadOffloaderSignature(
   outletId: string,
   orderId: string,
   localImageUri: string,
+  naming: {
+    outletName: string;
+    offloaderName: string;
+    supervisorLabel: string;
+    orderNumber: string;
+  },
 ): Promise<{ dbPath: string } | { error: string }> {
-  const storageKey = `${outletId}/${orderId}/offloader.webp`;
+  const fileName = buildOffloaderSignatureFileName({
+    outletName: naming.outletName,
+    offloaderName: naming.offloaderName,
+    supervisorLabel: naming.supervisorLabel,
+    orderNumber: naming.orderNumber,
+  });
+  const storageKey = `${outletId}/${orderId}/${fileName}`;
   const dbPath = `signatures/${storageKey}`;
 
   let encodedUri: string;

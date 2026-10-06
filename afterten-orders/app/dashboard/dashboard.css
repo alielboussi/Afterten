@@ -727,6 +727,31 @@
   cursor: not-allowed;
 }
 
+.at-driverAddRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px 16px;
+  align-items: end;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.at-driverAddField {
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .at-driverAddRow {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .at-driverAddRow .at-form-submitBtn {
+    width: 100%;
+  }
+}
+
 .at-form-cancelBtn {
   padding: 11px 20px;
   border-radius: 999px;

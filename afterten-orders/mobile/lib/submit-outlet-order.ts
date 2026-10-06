@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatPersonName } from "./person-name";
 import { buildCartItemPayload, type CartItemPayload } from "./order-summary";
 import type { OutletProduct } from "./supabase";
 import { uploadOutletSignature } from "./signature-upload";
@@ -8,7 +7,8 @@ export async function submitOutletOrder(
   supabase: SupabaseClient,
   input: {
     outletId: string;
-    employeeName: string;
+    outletEmployeeId: string;
+    employeePasscode: string;
     signaturePngUri: string;
     products: OutletProduct[];
     cartQty: Record<string, number>;
@@ -16,9 +16,12 @@ export async function submitOutletOrder(
 ): Promise<
   { ok: true; orderNumber: string; orderId: string } | { ok: false; error: string }
 > {
-  const name = formatPersonName(input.employeeName);
-  if (name.length < 2) {
-    return { ok: false, error: "Enter who placed this order." };
+  const passcode = input.employeePasscode.trim();
+  if (!input.outletEmployeeId.trim()) {
+    return { ok: false, error: "Select an employee." };
+  }
+  if (passcode.length < 4) {
+    return { ok: false, error: "Enter the employee passcode." };
   }
 
   const items: CartItemPayload[] = buildCartItemPayload(input.products, input.cartQty);
@@ -32,7 +35,8 @@ export async function submitOutletOrder(
   }
 
   const { data, error } = await supabase.rpc("place_outlet_order", {
-    p_employee_name: name,
+    p_outlet_employee_id: input.outletEmployeeId.trim(),
+    p_employee_passcode: passcode,
     p_employee_signature_path: uploaded.dbPath,
     p_items: items,
   });

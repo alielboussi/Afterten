@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -8,18 +8,25 @@ import {
   TextInput,
   View,
 } from "react-native";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { OrderSummaryPreview, SummaryDisplayRow } from "../lib/order-summary";
 import { formatKitweDateTime, summaryGrandTotal } from "../lib/order-summary";
 import { formatKwacha } from "../lib/currency";
-import { formatPersonName, formatPersonNameInput, isValidPersonName } from "../lib/person-name";
+import { fetchOutletEmployeesForApp, type OutletEmployeeOption } from "../lib/outlet-employees";
+import { verifyOutletEmployeePasscode } from "../lib/verify-outlet-employee-passcode";
 import { SignaturePad, type SignaturePadHandle } from "./SignaturePad";
 
 type Props = {
+  supabase: SupabaseClient;
   outletName: string;
   outletCode: string;
   preview: OrderSummaryPreview;
   onBack: () => void;
-  onSaveOrder: (employeeName: string, signaturePad: SignaturePadHandle) => void;
+  onSaveOrder: (
+    outletEmployeeId: string,
+    employeePasscode: string,
+    signaturePad: SignaturePadHandle,
+  ) => void;
   saving: boolean;
   saveError: string | null;
   contentPaddingBottom: number;
@@ -55,6 +62,7 @@ function renderRow(row: SummaryDisplayRow) {
 }
 
 export function OrderSummaryScreen({
+  supabase,
   outletName,
   outletCode,
   preview,
@@ -67,11 +75,66 @@ export function OrderSummaryScreen({
   const { dateLabel, timeLabel } = formatKitweDateTime();
   const grandTotal = summaryGrandTotal(preview.groups);
   const signatureRef = useRef<SignaturePadHandle>(null);
-  const [employeeName, setEmployeeName] = useState("");
+  const [employees, setEmployees] = useState<OutletEmployeeOption[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
+  const [employeesError, setEmployeesError] = useState<string | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [passcode, setPasscode] = useState("");
+  const [passcodeVerified, setPasscodeVerified] = useState(false);
+  const [passcodeVerifyError, setPasscodeVerifyError] = useState<string | null>(null);
+  const [passcodeVerifying, setPasscodeVerifying] = useState(false);
   const [signatureValid, setSignatureValid] = useState(false);
 
-  const nameOk = isValidPersonName(employeeName);
-  const canSave = nameOk && signatureValid && !saving;
+  function resetPasscodeVerification() {
+    setPasscodeVerified(false);
+    setPasscodeVerifyError(null);
+    setSignatureValid(false);
+    signatureRef.current?.clear();
+  }
+
+  async function verifyPasscodeForSelectedEmployee() {
+    if (!selectedEmployeeId || passcode.trim().length < 4) {
+      resetPasscodeVerification();
+      return;
+    }
+    setPasscodeVerifying(true);
+    setPasscodeVerifyError(null);
+    const result = await verifyOutletEmployeePasscode(supabase, selectedEmployeeId, passcode);
+    setPasscodeVerifying(false);
+    if (!result.ok) {
+      resetPasscodeVerification();
+      setPasscodeVerifyError(result.error);
+      return;
+    }
+    setPasscodeVerified(true);
+    setPasscodeVerifyError(null);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    setEmployeesLoading(true);
+    setEmployeesError(null);
+    void fetchOutletEmployeesForApp(supabase).then((result) => {
+      if (cancelled) return;
+      setEmployeesLoading(false);
+      if (!result.ok) {
+        setEmployeesError(result.error);
+        setEmployees([]);
+        return;
+      }
+      setEmployees(result.employees);
+      if (result.employees.length === 1) {
+        setSelectedEmployeeId(result.employees[0].id);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  const passcodeOk = passcodeVerified;
+  const employeeOk = Boolean(selectedEmployeeId);
+  const canSave = employeeOk && passcodeOk && signatureValid && !saving && !employeesLoading && !passcodeVerifying;
 
   return (
     <ScrollView
@@ -106,25 +169,84 @@ export function OrderSummaryScreen({
         <Text style={styles.totalValue}>{formatKwacha(grandTotal)}</Text>
       </View>
 
-      <Text style={styles.fieldLabel}>Order Placed By</Text>
-      <TextInput
-        style={styles.nameInput}
-        value={employeeName}
-        onChangeText={(text) => setEmployeeName(formatPersonNameInput(text))}
-        onBlur={() => setEmployeeName(formatPersonName(employeeName))}
-        placeholder="Full name"
-        placeholderTextColor="#a8a29e"
-        autoCapitalize="words"
-        autoCorrect={false}
-        editable={!saving}
-        accessibilityLabel="Order placed by"
-      />
+      <Text style={styles.fieldLabel}>Order placed by</Text>
+      {employeesLoading ? (
+        <ActivityIndicator style={styles.employeeLoader} color="#c41e3a" />
+      ) : employeesError ? (
+        <Text style={styles.employeeHintErr}>{employeesError}</Text>
+      ) : employees.length === 0 ? (
+        <Text style={styles.employeeHintErr}>
+          No employees configured. Ask your admin to add staff under Outlet Users → Employees.
+        </Text>
+      ) : (
+        <View style={styles.employeeList}>
+          {employees.map((emp) => {
+            const selected = emp.id === selectedEmployeeId;
+            return (
+              <Pressable
+                key={emp.id}
+                style={[styles.employeeRow, selected && styles.employeeRowSelected]}
+                onPress={() => {
+                  setSelectedEmployeeId(emp.id);
+                  setPasscode("");
+                  resetPasscodeVerification();
+                }}
+                disabled={saving}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+              >
+                <Text style={[styles.employeeRowText, selected && styles.employeeRowTextSelected]}>
+                  {emp.displayName}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
-      <SignaturePad
-        ref={signatureRef}
-        disabled={saving}
-        onValidityChange={setSignatureValid}
-      />
+      {selectedEmployeeId ? (
+        <>
+          <Text style={styles.fieldLabel}>Employee passcode</Text>
+          <TextInput
+            style={styles.nameInput}
+            value={passcode}
+            onChangeText={(text) => {
+              setPasscode(text);
+              resetPasscodeVerification();
+            }}
+            onBlur={() => void verifyPasscodeForSelectedEmployee()}
+            placeholder="Enter passcode"
+            placeholderTextColor="#a8a29e"
+            secureTextEntry
+            keyboardType="number-pad"
+            autoComplete="off"
+            editable={!saving && !passcodeVerifying}
+            accessibilityLabel="Employee passcode"
+          />
+          {passcodeVerifying ? (
+            <ActivityIndicator style={{ marginTop: 8 }} color="#c41e3a" />
+          ) : null}
+          {passcodeVerifyError ? (
+            <Text style={styles.employeeHintErr}>{passcodeVerifyError}</Text>
+          ) : passcodeVerified ? (
+            <Text style={styles.passcodeOkHint}>Passcode accepted — you may sign below.</Text>
+          ) : passcode.trim().length >= 4 ? (
+            <Text style={styles.employeeHintMuted}>Leave the field to verify your passcode.</Text>
+          ) : null}
+        </>
+      ) : null}
+
+      {passcodeVerified ? (
+        <SignaturePad
+          ref={signatureRef}
+          disabled={saving}
+          onValidityChange={setSignatureValid}
+        />
+      ) : (
+        <Text style={styles.signatureLocked}>
+          Select an employee and enter a valid passcode before signing.
+        </Text>
+      )}
 
       {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
 
@@ -133,9 +255,9 @@ export function OrderSummaryScreen({
         disabled={!canSave}
         onPress={() => {
           const pad = signatureRef.current;
-          if (!pad || !nameOk) return;
+          if (!pad || !selectedEmployeeId || !passcodeOk) return;
           if (!pad.isValid()) return;
-          void onSaveOrder(employeeName, pad);
+          void onSaveOrder(selectedEmployeeId, passcode.trim(), pad);
         }}
         accessibilityRole="button"
       >
@@ -247,6 +369,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#292524",
+  },
+  employeeLoader: { marginTop: 12 },
+  employeeHintErr: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "#b91c1c",
+    lineHeight: 18,
+  },
+  employeeHintMuted: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#78716c",
+    lineHeight: 17,
+  },
+  passcodeOkHint: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "#166534",
+    fontWeight: "600",
+  },
+  signatureLocked: {
+    marginTop: 20,
+    fontSize: 13,
+    color: "#78716c",
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 12,
+  },
+  employeeList: {
+    marginTop: 8,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: "#d6d3d1",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  employeeRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e7e5e4",
+  },
+  employeeRowSelected: {
+    backgroundColor: "#fef2f2",
+  },
+  employeeRowText: {
+    fontSize: 15,
+    color: "#292524",
+    fontWeight: "500",
+  },
+  employeeRowTextSelected: {
+    color: "#c41e3a",
+    fontWeight: "700",
   },
   nameInput: {
     marginTop: 8,

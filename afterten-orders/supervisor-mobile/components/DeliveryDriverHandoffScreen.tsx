@@ -21,6 +21,7 @@ import { uploadDriverSignature } from "../lib/driver-signature-upload";
 type Props = {
   supabase: SupabaseClient;
   orderId: string;
+  supervisorLabel: string;
   onBack: () => void;
   onComplete: (message: string) => void;
   contentPaddingBottom: number;
@@ -29,6 +30,7 @@ type Props = {
 export function DeliveryDriverHandoffScreen({
   supabase,
   orderId,
+  supervisorLabel,
   onBack,
   onComplete,
   contentPaddingBottom,
@@ -91,7 +93,12 @@ export function DeliveryDriverHandoffScreen({
       setError("Could not read signature.");
       return;
     }
-    const uploaded = await uploadDriverSignature(supabase, outletId, orderId, pngUri);
+    const uploaded = await uploadDriverSignature(supabase, outletId, orderId, pngUri, {
+      outletName,
+      driverName: selectedDriver.name,
+      supervisorLabel: supervisorLabel.trim() || "Supervisor",
+      orderNumber,
+    });
     if ("error" in uploaded) {
       setBusy(false);
       setError(uploaded.error);

@@ -246,6 +246,22 @@
   background: #dbeafe;
 }
 
+.employeesBtn {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.employeesBtn:hover {
+  background: #dcfce7;
+}
+
 .productPicker {
   display: flex;
   flex-direction: column;

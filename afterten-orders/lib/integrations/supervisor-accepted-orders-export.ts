@@ -43,6 +43,11 @@ export type SupervisorAcceptedOrderExportRecord = {
   order_automatically_added_products_qty: number | null;
   order_automatically_added_products_uom: string | null;
   line_count?: number | null;
+  supervisor_accepted_alias?: string | null;
+  order_completed_at?: string | null;
+  offloader_name?: string | null;
+  driver_signature_url?: string | null;
+  offloader_signature_url?: string | null;
 };
 
 export type SupervisorAcceptedOrdersExportResponse = {
@@ -54,6 +59,12 @@ export type SupervisorAcceptedOrdersExportResponse = {
   next_cursor: string | null;
   records: SupervisorAcceptedOrderExportRecord[];
 };
+
+export type IntegrationOrderKind =
+  | "supervisor_accepted"
+  | "outlet_placed"
+  | "driver_handoff"
+  | "outlet_offloading";
 
 export type FetchSupervisorAcceptedOrdersOptions = {
   limit?: number;
@@ -76,12 +87,17 @@ type OrderRow = {
   status: string;
   created_at: string;
   loaded_at: string | null;
-  supervisor_accepted_at: string;
+  completed_at: string | null;
+  supervisor_accepted_at: string | null;
+  supervisor_accepted_alias: string | null;
   updated_at: string;
   grand_total: number;
   employee_name: string | null;
   driver_id: string | null;
   driver_name: string | null;
+  driver_signature_path: string | null;
+  offloader_name: string | null;
+  offloader_signature_path: string | null;
   outlets: { active: boolean } | { active: boolean }[] | null;
 };
 
@@ -138,19 +154,24 @@ export function verifyIntegrationBearer(req: Request):
   return { ok: true };
 }
 
-export function encodeOrdersCursor(supervisorAcceptedAt: string, orderId: string): string {
-  return Buffer.from(`${supervisorAcceptedAt}|${orderId}`, "utf8").toString("base64url");
+export function encodeOrdersCursor(sortValue: string, orderId: string): string {
+  return Buffer.from(`${sortValue}|${orderId}`, "utf8").toString("base64url");
 }
 
-export function decodeOrdersCursor(cursor: string): { acceptedAt: string; orderId: string } | null {
+/** @deprecated use encodeOrdersCursor */
+export function encodeOrdersCursorLegacy(supervisorAcceptedAt: string, orderId: string): string {
+  return encodeOrdersCursor(supervisorAcceptedAt, orderId);
+}
+
+export function decodeOrdersCursor(cursor: string): { sortValue: string; orderId: string } | null {
   try {
     const raw = Buffer.from(cursor, "base64url").toString("utf8");
     const sep = raw.indexOf("|");
     if (sep <= 0) return null;
-    const acceptedAt = raw.slice(0, sep);
+    const sortValue = raw.slice(0, sep);
     const orderId = raw.slice(sep + 1);
-    if (!acceptedAt || !orderId) return null;
-    return { acceptedAt, orderId };
+    if (!sortValue || !orderId) return null;
+    return { sortValue, orderId };
   } catch {
     return null;
   }
@@ -169,10 +190,29 @@ function outletActive(order: OrderRow): boolean | null {
 }
 
 function supervisorRevised(order: OrderRow): boolean {
+  if (!order.supervisor_accepted_at) return false;
   const accepted = new Date(order.supervisor_accepted_at).getTime();
   const updated = new Date(order.updated_at).getTime();
   return updated - accepted > 2000;
 }
+
+async function signedStorageUrl(
+  admin: SupabaseClient,
+  dbPath: string | null | undefined,
+): Promise<string | null> {
+  if (!dbPath?.trim()) return null;
+  const trimmed = dbPath.trim();
+  const slash = trimmed.indexOf("/");
+  if (slash <= 0) return null;
+  const bucket = trimmed.slice(0, slash);
+  const key = trimmed.slice(slash + 1);
+  const { data, error } = await admin.storage.from(bucket).createSignedUrl(key, 3600);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
+
+const ORDER_SELECT_FIELDS =
+  "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, completed_at, supervisor_accepted_at, supervisor_accepted_alias, updated_at, grand_total, employee_name, driver_id, driver_name, driver_signature_path, offloader_name, offloader_signature_path";
 
 async function loadAutoAddedProductIds(admin: SupabaseClient): Promise<Set<string>> {
   const { data: rules } = await admin.from("product_order_rules").select("id").eq("active", true);
@@ -327,6 +367,13 @@ function orderHeaderFields(
       ? null
       : String(order.driver_name ?? "").trim() ||
         (order.driver_id ? (cache.drivers.get(order.driver_id) ?? null) : null),
+    supervisor_accepted_alias: compact
+      ? null
+      : String(order.supervisor_accepted_alias ?? "").trim() || null,
+    order_completed_at: compact ? null : order.completed_at,
+    offloader_name: compact ? null : order.offloader_name?.trim() || null,
+    driver_signature_url: null,
+    offloader_signature_url: null,
   };
 }
 
@@ -418,7 +465,8 @@ function applyLineToRecord(
   }
 }
 
-export async function fetchSupervisorAcceptedOrdersExport(
+export async function fetchOrdersIntegrationExport(
+  kind: IntegrationOrderKind,
   options?: FetchSupervisorAcceptedOrdersOptions,
 ): Promise<SupervisorAcceptedOrdersExportResponse> {
   const admin = createAdminClient();
@@ -433,34 +481,54 @@ export async function fetchSupervisorAcceptedOrdersExport(
       : "standard";
   const activeOnly = options?.active_outlets_only !== false;
 
+  const sortField =
+    kind === "outlet_placed"
+      ? "created_at"
+      : kind === "driver_handoff"
+        ? "loaded_at"
+        : kind === "outlet_offloading"
+          ? "completed_at"
+          : "supervisor_accepted_at";
+
   let query = admin.from("outlet_orders").select(
     activeOnly
-      ? "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, supervisor_accepted_at, updated_at, grand_total, employee_name, driver_id, driver_name, outlets!inner(active)"
-      : "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, supervisor_accepted_at, updated_at, grand_total, employee_name, driver_id, driver_name, outlets(active)",
+      ? `${ORDER_SELECT_FIELDS}, outlets!inner(active)`
+      : `${ORDER_SELECT_FIELDS}, outlets(active)`,
   );
 
-  query = query
-    .in("status", ["accepted", "loaded", "completed"])
-    .not("supervisor_accepted_at", "is", null)
-    .order("supervisor_accepted_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(limit + 1);
+  if (kind === "supervisor_accepted") {
+    query = query
+      .in("status", ["accepted", "loaded", "completed"])
+      .not("supervisor_accepted_at", "is", null);
+  } else if (kind === "outlet_placed") {
+    query = query.eq("status", "placed");
+  } else if (kind === "driver_handoff") {
+    query = query
+      .in("status", ["loaded", "completed"])
+      .not("driver_signature_path", "is", null)
+      .not("loaded_at", "is", null);
+  } else {
+    query = query
+      .eq("status", "completed")
+      .not("offloader_signature_path", "is", null)
+      .not("completed_at", "is", null);
+  }
+
+  query = query.order(sortField, { ascending: false }).order("id", { ascending: false }).limit(limit + 1);
 
   if (activeOnly) {
     query = query.eq("outlets.active", true);
   }
 
   if (options?.since?.trim()) {
-    query = query.gte("supervisor_accepted_at", options.since.trim());
+    query = query.gte(sortField, options.since.trim());
   }
 
   const decoded = options?.cursor?.trim() ? decodeOrdersCursor(options.cursor.trim()) : null;
   if (decoded) {
-    const ts = decoded.acceptedAt.replace(/"/g, '\\"');
+    const ts = decoded.sortValue.replace(/"/g, '\\"');
     const oid = decoded.orderId;
-    query = query.or(
-      `supervisor_accepted_at.lt."${ts}",and(supervisor_accepted_at.eq."${ts}",id.lt."${oid}")`,
-    );
+    query = query.or(`${sortField}.lt."${ts}",and(${sortField}.eq."${ts}",id.lt."${oid}")`);
   }
 
   const { data: orderRows, error: ordersErr } = await query;
@@ -501,6 +569,22 @@ export async function fetchSupervisorAcceptedOrdersExport(
   const productIds = items.map((i) => String(i.product_id));
   const cache = await buildCatalogCache(admin, productIds, driverIds);
 
+  const signatureUrlByOrder = new Map<string, { driver?: string | null; offloader?: string | null }>();
+  if (kind === "driver_handoff" || kind === "outlet_offloading") {
+    await Promise.all(
+      orders.map(async (order) => {
+        const entry: { driver?: string | null; offloader?: string | null } = {};
+        if (kind === "driver_handoff") {
+          entry.driver = await signedStorageUrl(admin, order.driver_signature_path);
+        }
+        if (kind === "outlet_offloading") {
+          entry.offloader = await signedStorageUrl(admin, order.offloader_signature_path);
+        }
+        signatureUrlByOrder.set(order.id, entry);
+      }),
+    );
+  }
+
   const itemsByOrder = new Map<string, ItemRow[]>();
   for (const item of items) {
     const list = itemsByOrder.get(item.order_id) ?? [];
@@ -512,6 +596,9 @@ export async function fetchSupervisorAcceptedOrdersExport(
 
   for (const order of orders) {
     const header = orderHeaderFields(order, cache, detail);
+    const sigUrls = signatureUrlByOrder.get(order.id);
+    if (sigUrls?.driver) header.driver_signature_url = sigUrls.driver;
+    if (sigUrls?.offloader) header.offloader_signature_url = sigUrls.offloader;
 
     if (view === "summary") {
       records.push({
@@ -534,10 +621,9 @@ export async function fetchSupervisorAcceptedOrdersExport(
   }
 
   const last = orders[orders.length - 1];
-  const next_cursor =
-    hasMore && last
-      ? encodeOrdersCursor(last.supervisor_accepted_at, last.id)
-      : null;
+  const lastSortRaw = last[sortField as keyof OrderRow];
+  const lastSort = lastSortRaw != null ? String(lastSortRaw) : "";
+  const next_cursor = hasMore && last && lastSort ? encodeOrdersCursor(lastSort, last.id) : null;
 
   return {
     generated_at: new Date().toISOString(),
@@ -548,4 +634,10 @@ export async function fetchSupervisorAcceptedOrdersExport(
     next_cursor,
     records,
   };
+}
+
+export async function fetchSupervisorAcceptedOrdersExport(
+  options?: FetchSupervisorAcceptedOrdersOptions,
+): Promise<SupervisorAcceptedOrdersExportResponse> {
+  return fetchOrdersIntegrationExport("supervisor_accepted", options);
 }

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { buildDriverSignatureFileName } from "./signature-file-name";
 
 async function encodeSignatureImage(pngUri: string): Promise<string> {
   const { uri } = await manipulateAsync(pngUri, [], {
@@ -16,8 +16,20 @@ export async function uploadDriverSignature(
   outletId: string,
   orderId: string,
   localImageUri: string,
+  naming: {
+    outletName: string;
+    driverName: string;
+    supervisorLabel: string;
+    orderNumber: string;
+  },
 ): Promise<{ dbPath: string } | { error: string }> {
-  const storageKey = `${outletId}/${orderId}/driver.webp`;
+  const fileName = buildDriverSignatureFileName({
+    outletName: naming.outletName,
+    driverName: naming.driverName,
+    supervisorLabel: naming.supervisorLabel,
+    orderNumber: naming.orderNumber,
+  });
+  const storageKey = `${outletId}/${orderId}/${fileName}`;
   const dbPath = `driver-signatures/${storageKey}`;
 
   let encodedUri: string;

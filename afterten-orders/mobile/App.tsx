@@ -55,6 +55,10 @@ import {
 import { submitOutletOrder } from "./lib/submit-outlet-order";
 import { flushOfflineCompleteQueue } from "./lib/offline-complete-queue";
 import { registerOutletPushNotifications } from "./lib/outlet-push";
+import { ReturnsFlowScreen } from "./components/ReturnsFlowScreen";
+import { previewReturnNumber } from "./lib/outlet-returns-list";
+import { uploadReturnPhoto, uploadReturnSignature } from "./lib/return-upload";
+import { submitOutletReturn } from "./lib/submit-outlet-return";
 import type { SignaturePadHandle } from "./components/SignaturePad";
 
 type Screen = "loading" | "login" | "home";
@@ -91,6 +95,10 @@ function AppShell() {
   const [offloadingRefreshToken, setOffloadingRefreshToken] = useState(0);
   const [completedOrdersActive, setCompletedOrdersActive] = useState(false);
   const [completedOrderDetailId, setCompletedOrderDetailId] = useState<string | null>(null);
+  const [returnsActive, setReturnsActive] = useState(false);
+  const [returnSaving, setReturnSaving] = useState(false);
+  const [returnSaveError, setReturnSaveError] = useState<string | null>(null);
+  const [returnPreviewNumber, setReturnPreviewNumber] = useState<string | null>(null);
 
   async function onViewSummary() {
     if (!supabase || !cartHasItems(cartQty)) return;
@@ -107,7 +115,11 @@ function AppShell() {
     setOrderSummaryActive(true);
   }
 
-  async function onSaveOrderFromSummary(employeeName: string, signaturePad: SignaturePadHandle) {
+  async function onSaveOrderFromSummary(
+    outletEmployeeId: string,
+    employeePasscode: string,
+    signaturePad: SignaturePadHandle,
+  ) {
     if (!supabase || !profile || orderSaving) return;
     if (!signaturePad.isValid()) {
       setOrderSaveError(signaturePad.validationMessage() ?? "Please sign in the box.");
@@ -123,7 +135,8 @@ function AppShell() {
     }
     const result = await submitOutletOrder(supabase, {
       outletId: profile.outlet_id,
-      employeeName,
+      outletEmployeeId,
+      employeePasscode,
       signaturePngUri: pngUri,
       products,
       cartQty,
@@ -343,6 +356,78 @@ function AppShell() {
             onOpenDetail={(id) => setCompletedOrderDetailId(id)}
             onToast={setSaveToast}
             contentPaddingBottom={screenLayout.paddingBottom + 16}
+          />
+          <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
+          <StatusBar style="auto" />
+        </View>
+      );
+    }
+
+    if (returnsActive && supabase && profile) {
+      return (
+        <View
+          style={[
+            styles.home,
+            {
+              paddingTop: screenLayout.paddingTop,
+              paddingBottom: screenLayout.paddingBottom,
+              paddingHorizontal: screenLayout.paddingHorizontal,
+            },
+          ]}
+        >
+          <ReturnsFlowScreen
+            supabase={supabase}
+            contentPaddingBottom={screenLayout.paddingBottom + 16}
+            previewReturnNumber={returnPreviewNumber}
+            saving={returnSaving}
+            saveError={returnSaveError}
+            onBack={() => {
+              setReturnsActive(false);
+              setReturnSaveError(null);
+            }}
+            onSubmitReturn={async (input) => {
+              if (!profile || returnSaving) return { ok: false, error: "Busy." };
+              setReturnSaving(true);
+              setReturnSaveError(null);
+              const photoUp = await uploadReturnPhoto(
+                supabase,
+                profile.outlet_id,
+                input.returnId,
+                input.photoUri,
+              );
+              if ("error" in photoUp) {
+                setReturnSaving(false);
+                setReturnSaveError(photoUp.error);
+                return { ok: false, error: photoUp.error };
+              }
+              const sigUp = await uploadReturnSignature(
+                supabase,
+                profile.outlet_id,
+                input.returnId,
+                input.signaturePngUri,
+              );
+              if ("error" in sigUp) {
+                setReturnSaving(false);
+                setReturnSaveError(sigUp.error);
+                return { ok: false, error: sigUp.error };
+              }
+              const result = await submitOutletReturn(supabase, {
+                returnId: input.returnId,
+                outletEmployeeId: input.outletEmployeeId,
+                employeePasscode: input.employeePasscode,
+                photoDbPath: photoUp.dbPath,
+                signatureDbPath: sigUp.dbPath,
+              });
+              setReturnSaving(false);
+              if (!result.ok) {
+                setReturnSaveError(result.error);
+                return { ok: false, error: result.error };
+              }
+              setReturnSaveError(null);
+              setSaveToast(`Return ${result.returnNumber} submitted.`);
+              void previewReturnNumber(supabase).then(setReturnPreviewNumber);
+              return { ok: true };
+            }}
           />
           <ToastBanner message={saveToast} onDismiss={() => setSaveToast(null)} />
           <StatusBar style="auto" />
@@ -628,6 +713,17 @@ function AppShell() {
                   <Text style={styles.viewOrdersBtnText}>View Orders</Text>
                 </Pressable>
                 <Pressable
+                  style={[styles.viewOrdersBtn, compact && styles.viewOrdersBtnCompact]}
+                  onPress={() => {
+                    setReturnSaveError(null);
+                    setReturnsActive(true);
+                    if (supabase) void previewReturnNumber(supabase).then(setReturnPreviewNumber);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.viewOrdersBtnText}>Returns</Text>
+                </Pressable>
+                <Pressable
                   style={[styles.offloadingBtn, compact && styles.offloadingBtnCompact]}
                   onPress={() => {
                     setOffloadingRefreshToken((t) => t + 1);
@@ -683,6 +779,7 @@ function AppShell() {
             {productsError ? <Text style={styles.error}>{productsError}</Text> : null}
             {orderSummaryActive && orderSummaryPreview ? (
               <OrderSummaryScreen
+                supabase={supabase}
                 outletName={displayName}
                 outletCode={profile.outlet_id}
                 preview={orderSummaryPreview}
@@ -691,7 +788,9 @@ function AppShell() {
                   setOrderSummaryPreview(null);
                   setOrderSaveError(null);
                 }}
-                onSaveOrder={(name, pad) => void onSaveOrderFromSummary(name, pad)}
+                onSaveOrder={(employeeId, passcode, pad) =>
+                  void onSaveOrderFromSummary(employeeId, passcode, pad)
+                }
                 saving={orderSaving}
                 saveError={orderSaveError}
                 contentPaddingBottom={screenLayout.listBottomPad}
