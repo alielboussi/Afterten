@@ -1,21 +1,44 @@
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
-import Constants from "expo-constants";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+function isExpoGo(): boolean {
+  return (
+    Constants.appOwnership === "expo" ||
+    Constants.executionEnvironment === ExecutionEnvironment.StoreClient
+  );
+}
+
+let notificationHandlerConfigured = false;
+
+async function configureNotificationHandler() {
+  if (notificationHandlerConfigured) return;
+  const Notifications = await import("expo-notifications");
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+  notificationHandlerConfigured = true;
+}
 
 export async function registerOutletPushNotifications(
   supabase: SupabaseClient,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (isExpoGo()) {
+    return {
+      ok: false,
+      reason: "Remote push needs an EAS preview/production build (not Expo Go).",
+    };
+  }
+
+  await configureNotificationHandler();
+  const Notifications = await import("expo-notifications");
+
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
   if (existing !== "granted") {

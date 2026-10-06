@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -33,13 +35,16 @@ export function OffloadingDashboardScreen({
 }: Props) {
   const [orders, setOrders] = useState<OffloadingOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     setError(null);
     const result = await fetchOffloadingOrders(supabase);
-    setLoading(false);
+    if (isRefresh) setRefreshing(false);
+    else setLoading(false);
     if (result.error) {
       setError(result.error);
       return;
@@ -50,6 +55,13 @@ export function OffloadingDashboardScreen({
   useEffect(() => {
     void load();
   }, [load, refreshToken]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   return (
     <View style={styles.root}>
@@ -68,6 +80,7 @@ export function OffloadingDashboardScreen({
           data={orders}
           keyExtractor={(item) => item.order_id}
           contentContainerStyle={{ paddingBottom: contentPaddingBottom }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} />}
           ListEmptyComponent={<Text style={styles.empty}>No dispatched orders waiting.</Text>}
           renderItem={({ item }) => (
             <OffloadingOrderCard
@@ -105,7 +118,8 @@ function OffloadingOrderCard({
       <Text style={styles.outletName}>{item.outlet_name}</Text>
       <Text style={styles.orderNumber}>{item.order_number}</Text>
       <Text style={styles.meta}>
-        Dispatched {item.loaded_at ? formatOrderDate(item.loaded_at) : "—"} (Kitwe)
+        Driver {item.driver_name?.trim() || "—"} · Dispatched{" "}
+        {item.loaded_at ? formatOrderDate(item.loaded_at) : "—"} (Kitwe)
       </Text>
       <Text style={styles.total}>{formatKwacha(item.grand_total)}</Text>
       <View style={styles.actions}>

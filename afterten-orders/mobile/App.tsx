@@ -629,7 +629,10 @@ function AppShell() {
                 </Pressable>
                 <Pressable
                   style={[styles.offloadingBtn, compact && styles.offloadingBtnCompact]}
-                  onPress={() => setOffloadingActive(true)}
+                  onPress={() => {
+                    setOffloadingRefreshToken((t) => t + 1);
+                    setOffloadingActive(true);
+                  }}
                   accessibilityRole="button"
                 >
                   <Text style={styles.offloadingBtnText}>Offloading</Text>
@@ -1091,7 +1094,7 @@ const styles = StyleSheet.create({
   viewOrdersBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   offloadingBtn: {
     marginTop: 12,
-    backgroundColor: "#1e3a8a",
+    backgroundColor: "#c41e3a",
     borderRadius: 999,
     paddingVertical: 16,
     paddingHorizontal: 28,

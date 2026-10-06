@@ -35,6 +35,7 @@ export async function ensurePortalOrderPdf(
   orderId: string,
   kind: PortalOrderPdfKind,
 ): Promise<{ ok: true; pdfPath: string; fileName: string } | { ok: false; error: string }> {
+  // Always re-render so template/layout updates apply (storage upload uses upsert).
   if (kind === "placed") {
     return generateAndStoreOutletOrderPdf(admin, orderId);
   }

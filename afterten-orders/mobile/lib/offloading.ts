@@ -5,6 +5,7 @@ import {
   type OffloadingLine,
 } from "./offloading-display";
 import { getCachedOutletOrderRules } from "./order-rules-session-cache";
+import { parseRpcJsonRows } from "./rpc-json";
 
 export type OffloadingOrderRow = {
   order_id: string;
@@ -13,6 +14,7 @@ export type OffloadingOrderRow = {
   grand_total: number;
   loaded_at: string | null;
   offloading_checklist_completed_at: string | null;
+  driver_name: string | null;
 };
 
 export type OffloadingOrderDetail = {
@@ -32,10 +34,9 @@ export async function fetchOffloadingOrders(
 ): Promise<{ orders: OffloadingOrderRow[]; error: string | null }> {
   const { data, error } = await supabase.rpc("list_outlet_offloading_orders");
   if (error) return { orders: [], error: error.message };
-  const rows = Array.isArray(data) ? data : [];
+  const rows = parseRpcJsonRows(data);
   return {
-    orders: rows.map((row) => {
-      const r = row as Record<string, unknown>;
+    orders: rows.map((r) => {
       return {
         order_id: String(r.order_id ?? ""),
         order_number: String(r.order_number ?? ""),
@@ -46,6 +47,7 @@ export async function fetchOffloadingOrders(
           r.offloading_checklist_completed_at != null
             ? String(r.offloading_checklist_completed_at)
             : null,
+        driver_name: r.driver_name != null ? String(r.driver_name) : null,
       };
     }),
     error: null,

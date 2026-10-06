@@ -188,11 +188,19 @@ export async function fetchOutletProfile(
     return { profile: null, error: "Portal admin accounts cannot use the outlet app." };
   }
 
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser();
+  if (userErr) return { profile: null, error: userErr.message };
+  if (!user) return { profile: null, error: "Not signed in." };
+
   const { data, error } = await supabase
     .from("app_profiles")
     .select(
       "user_id, email, alias, outlet_id, outlet_name, active, profile_kind, outlets ( name )",
     )
+    .eq("user_id", user.id)
     .eq("profile_kind", "outlet_app")
     .maybeSingle();
 

@@ -55,7 +55,7 @@ async function main() {
   const iconPng = await composeIcon(sharp, opaqueFrame, logoPng);
   const androidForeground = await composeIcon(sharp, androidFrame, logoPng);
 
-  for (const name of ["icon.png", "splash-icon.png", "favicon.png", "android-icon-monochrome.png"]) {
+  for (const name of ["icon.png", "favicon.png", "android-icon-monochrome.png"]) {
     writeFileSync(path.join(assets, name), iconPng);
   }
 
