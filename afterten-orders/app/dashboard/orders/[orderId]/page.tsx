@@ -34,15 +34,15 @@ export default async function PortalOrderDetailPage({ params }: PageProps) {
   const { data: order, error: orderErr } = await admin
     .from("outlet_orders")
     .select(
-      "id, order_number, outlet_id, outlet_name, status, employee_name, grand_total, created_at, supervisor_accepted_at, supervisor_accepted_alias, loaded_at, completed_at, offloader_name, updated_at, driver_id, outlets(active)",
+      "id, order_number, outlet_id, outlet_name, status, employee_name, grand_total, created_at, supervisor_accepted_at, supervisor_accepted_alias, loaded_at, completed_at, offloader_name, updated_at, driver_id, driver_name, outlets(active)",
     )
     .eq("id", orderId)
     .maybeSingle();
 
   if (orderErr || !order) notFound();
 
-  let driverName: string | null = null;
-  if (order.driver_id) {
+  let driverName: string | null = String(order.driver_name ?? "").trim() || null;
+  if (!driverName && order.driver_id) {
     const { data: driver } = await admin
       .from("delivery_drivers")
       .select("name")

@@ -50,3 +50,42 @@ export async function setDeliveryDriverActive(driverId: string, active: boolean)
   });
   return { ok: true as const };
 }
+
+export async function deleteDeliveryDriver(driverId: string) {
+  const gate = await assertCallerIsPortalAdmin();
+  if (!gate.ok) return gate;
+  if (!driverId) return { ok: false as const, error: "Invalid driver." };
+
+  const admin = createAdminClient();
+
+  const { data: driver, error: driverErr } = await admin
+    .from("delivery_drivers")
+    .select("id, name")
+    .eq("id", driverId)
+    .maybeSingle();
+  if (driverErr) return { ok: false as const, error: driverErr.message };
+  if (!driver) return { ok: false as const, error: "Driver not found." };
+
+  const driverName = String(driver.name).trim();
+  const { error: snapErr } = await admin
+    .from("outlet_orders")
+    .update({
+      driver_name: driverName,
+      driver_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("driver_id", driverId);
+  if (snapErr) return { ok: false as const, error: snapErr.message };
+
+  const { error } = await admin.from("delivery_drivers").delete().eq("id", driverId);
+  if (error) return { ok: false as const, error: error.message };
+
+  revalidatePath("/dashboard/drivers");
+  await logPortalAudit({
+    pagePath: "/dashboard/drivers",
+    actionKind: "delete",
+    actionText: `Deleted delivery driver "${String(driver.name)}".`,
+    metadata: { driverId },
+  });
+  return { ok: true as const };
+}

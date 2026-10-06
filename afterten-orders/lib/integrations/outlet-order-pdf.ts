@@ -7,6 +7,8 @@ import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadPortalOrderLineRows } from "@/lib/portal/order-lines-display";
+import { resolveSupervisorDisplayAlias } from "@/lib/integrations/resolve-supervisor-alias";
+import { resolveDriverDisplayName } from "@/lib/integrations/resolve-driver-name";
 
 const LOGO_PATH = resolveLogoPath();
 
@@ -44,36 +46,118 @@ function drawDocumentHeader(
   return y + 10;
 }
 
-function drawSignatureSection(
+const SIG_COL_GAP = 14;
+const SIG_ROW_GAP = 12;
+const SIG_BOX_H = 52;
+
+type SignatureBlock = {
+  captionLine: string;
+  signaturePng: Buffer | null;
+  whenLabel?: string;
+};
+
+function signatureColumnWidth(): number {
+  return (CONTENT_WIDTH - SIG_COL_GAP) / 2;
+}
+
+function measureSignatureCellHeight(
   doc: InstanceType<typeof PDFDocument>,
-  y: number,
-  captionLine: string,
-  signaturePng: Buffer | null,
-  whenLabel?: string,
+  block: SignatureBlock,
+  colWidth: number,
 ): number {
-  if (whenLabel?.trim()) {
-    doc.font("Helvetica").fontSize(10).fillColor("#57534e");
-    doc.text(whenLabel.trim(), CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
-    y += 14;
+  let h = 0;
+  if (block.whenLabel?.trim()) {
+    doc.font("Helvetica").fontSize(10);
+    h += doc.heightOfString(block.whenLabel.trim(), { width: colWidth, align: "center" }) + 4;
   }
+  doc.font("Helvetica-Bold").fontSize(11);
+  h += doc.heightOfString(block.captionLine, { width: colWidth, align: "center" }) + 6;
+  h += SIG_BOX_H + 8;
+  return h;
+}
 
+function drawSignatureCell(
+  doc: InstanceType<typeof PDFDocument>,
+  x: number,
+  y: number,
+  colWidth: number,
+  block: SignatureBlock,
+): number {
+  let cy = y;
+  if (block.whenLabel?.trim()) {
+    doc.font("Helvetica").fontSize(10).fillColor("#57534e");
+    const whenH = doc.heightOfString(block.whenLabel.trim(), { width: colWidth, align: "center" });
+    doc.text(block.whenLabel.trim(), x, cy, { width: colWidth, align: "center" });
+    cy += whenH + 4;
+  }
   doc.font("Helvetica-Bold").fontSize(11).fillColor("#292524");
-  doc.text(captionLine, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
-  y += 22;
-
-  const boxW = 220;
-  const boxH = 52;
-  const boxX = CONTENT_LEFT + (CONTENT_WIDTH - boxW) / 2;
-
-  if (signaturePng && signaturePng.length > 0) {
-    doc.image(signaturePng, boxX, y, {
-      fit: [boxW, boxH],
+  const capH = doc.heightOfString(block.captionLine, { width: colWidth, align: "center" });
+  doc.text(block.captionLine, x, cy, { width: colWidth, align: "center" });
+  cy += capH + 6;
+  const boxW = Math.min(220, colWidth - 4);
+  const boxX = x + (colWidth - boxW) / 2;
+  if (block.signaturePng && block.signaturePng.length > 0) {
+    doc.image(block.signaturePng, boxX, cy, {
+      fit: [boxW, SIG_BOX_H],
       align: "center",
       valign: "center",
     });
   }
+  return cy + SIG_BOX_H + 8;
+}
 
-  return y + boxH + 18;
+function measureSignatureGridHeight(
+  doc: InstanceType<typeof PDFDocument>,
+  blocks: SignatureBlock[],
+): number {
+  if (blocks.length === 0) return 0;
+  const colWidth = signatureColumnWidth();
+  const rows = Math.ceil(blocks.length / 2);
+  let total = 10;
+  for (let r = 0; r < rows; r++) {
+    const left = blocks[r * 2];
+    const right = blocks[r * 2 + 1];
+    const hLeft = left ? measureSignatureCellHeight(doc, left, colWidth) : 0;
+    const hRight = right ? measureSignatureCellHeight(doc, right, colWidth) : 0;
+    total += Math.max(hLeft, hRight);
+    if (r < rows - 1) total += SIG_ROW_GAP;
+  }
+  return total;
+}
+
+function drawSignatureGrid(
+  doc: InstanceType<typeof PDFDocument>,
+  startY: number,
+  blocks: SignatureBlock[],
+): number {
+  const colWidth = signatureColumnWidth();
+  const leftX = CONTENT_LEFT;
+  const rightX = CONTENT_LEFT + colWidth + SIG_COL_GAP;
+  let y = startY + 6;
+  const rows = Math.ceil(blocks.length / 2);
+  for (let r = 0; r < rows; r++) {
+    const rowY = y;
+    let rowBottom = rowY;
+    const left = blocks[r * 2];
+    const right = blocks[r * 2 + 1];
+    if (left) rowBottom = Math.max(rowBottom, drawSignatureCell(doc, leftX, rowY, colWidth, left));
+    if (right) rowBottom = Math.max(rowBottom, drawSignatureCell(doc, rightX, rowY, colWidth, right));
+    y = rowBottom + (r < rows - 1 ? SIG_ROW_GAP : 0);
+  }
+  return y;
+}
+
+function reserveSpaceForSignaturesAndDisclaimer(
+  doc: InstanceType<typeof PDFDocument>,
+  y: number,
+  blocks: SignatureBlock[],
+): number {
+  const gridH = measureSignatureGridHeight(doc, blocks);
+  const disclaimerH =
+    measureLegalDisclaimerTextHeight(doc) + DISCLAIMER_GAP_ABOVE_PAGE_NUMBER + 12;
+  if (y + gridH + disclaimerH <= contentBottomLimit()) return y;
+  doc.addPage();
+  return PAD + BORDER_PT + 8;
 }
 
 const PAGE_W = 595.28;
@@ -115,24 +199,43 @@ export type OrderPdfLine = {
 };
 
 const LEGAL_DISCLAIMER =
-  "Each person named above certifies that the information in this order document is accurate to the best of their knowledge. Their signatures confirm approval of that information in connection with this order.";
+  "Disclaimer: Each person named above confirms that they have reviewed this order document and that the products, quantities, prices, totals, and dates shown are true and correct to the best of their knowledge and belief. Each signatory signs in the capacity stated and acknowledges that this document is a record of the transaction and may be retained and produced as evidence of the facts set out above, in accordance with applicable law in the Republic of Zambia.";
 
-const DISCLAIMER_FONT_SIZE = 32;
+const DISCLAIMER_FONT_SIZE = 10;
+const DISCLAIMER_GAP_ABOVE_PAGE_NUMBER = 16;
 
 function applyDisclaimerFont(doc: InstanceType<typeof PDFDocument>) {
-  doc.font("Helvetica-Bold").fontSize(DISCLAIMER_FONT_SIZE).fillColor("#44403c");
+  doc.font("Helvetica").fontSize(DISCLAIMER_FONT_SIZE).fillColor("#44403c");
 }
 
-function measureLegalDisclaimerHeight(doc: InstanceType<typeof PDFDocument>): number {
+function measureLegalDisclaimerTextHeight(doc: InstanceType<typeof PDFDocument>): number {
   applyDisclaimerFont(doc);
-  return doc.heightOfString(LEGAL_DISCLAIMER, { width: CONTENT_WIDTH, align: "center" }) + 10;
+  return doc.heightOfString(LEGAL_DISCLAIMER, { width: CONTENT_WIDTH, align: "center" });
 }
 
-function drawLegalDisclaimer(doc: InstanceType<typeof PDFDocument>, y: number): number {
+/** Anchor disclaimer above page numbers on the last page; add a page if body content would overlap. */
+function placeLegalDisclaimerOnLastPage(
+  doc: InstanceType<typeof PDFDocument>,
+  contentEndY: number,
+): void {
+  const textH = measureLegalDisclaimerTextHeight(doc);
+  const disclaimerTopY = FOOTER_Y - DISCLAIMER_GAP_ABOVE_PAGE_NUMBER - textH;
+
+  let range = doc.bufferedPageRange();
+  let lastIndex = range.start + range.count - 1;
+
+  if (contentEndY > disclaimerTopY - 8) {
+    doc.addPage();
+    range = doc.bufferedPageRange();
+    lastIndex = range.start + range.count - 1;
+  }
+
+  doc.switchToPage(lastIndex);
   applyDisclaimerFont(doc);
-  const h = doc.heightOfString(LEGAL_DISCLAIMER, { width: CONTENT_WIDTH, align: "center" });
-  doc.text(LEGAL_DISCLAIMER, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
-  return y + h + 10;
+  doc.text(LEGAL_DISCLAIMER, CONTENT_LEFT, disclaimerTopY, {
+    width: CONTENT_WIDTH,
+    align: "center",
+  });
 }
 
 export type OrderPdfInput = {
@@ -381,23 +484,16 @@ export async function renderOutletOrderPdf(input: OrderPdfInput): Promise<Buffer
       },
     });
 
-    const signatureBlockHeight = input.signatureWhenLabel?.trim() ? 112 : 92;
-    const disclaimerHeight = measureLegalDisclaimerHeight(doc);
-    const ensureSpace = (needed: number) => {
-      if (y + needed <= contentBottomLimit()) return;
-      doc.addPage();
-      y = PAD + BORDER_PT + 8;
-    };
-
-    ensureSpace(signatureBlockHeight + disclaimerHeight);
-    y = drawSignatureSection(
-      doc,
-      y,
-      input.signatureCaption,
-      input.signaturePng,
-      input.signatureWhenLabel,
-    );
-    y = drawLegalDisclaimer(doc, y);
+    const signatureBlocks: SignatureBlock[] = [
+      {
+        captionLine: input.signatureCaption,
+        signaturePng: input.signaturePng,
+        whenLabel: input.signatureWhenLabel,
+      },
+    ];
+    y = reserveSpaceForSignaturesAndDisclaimer(doc, y, signatureBlocks);
+    y = drawSignatureGrid(doc, y, signatureBlocks);
+    placeLegalDisclaimerOnLastPage(doc, y);
 
     drawPageNumbers(doc);
     doc.end();
@@ -433,12 +529,6 @@ export async function renderCombinedOrderPdf(input: CombinedOrderPdfInput): Prom
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const ensureSpace = (yPos: number, needed: number): number => {
-      if (yPos + needed <= contentBottomLimit()) return yPos;
-      doc.addPage();
-      return PAD + BORDER_PT + 8;
-    };
-
     const headerLines = [
       input.outletName,
       `Outlet code: ${input.outletId}`,
@@ -454,45 +544,30 @@ export async function renderCombinedOrderPdf(input: CombinedOrderPdfInput): Prom
       },
     });
 
-    y = ensureSpace(y, 130);
-    y = drawSignatureSection(
-      doc,
-      y,
-      `Order Placed By : ${input.employeeName}`,
-      input.employeeSignaturePng,
-    );
-
-    y = ensureSpace(y, 110);
-    y = drawSignatureSection(
-      doc,
-      y,
-      `Order Approved By Supervisor Name: ${input.supervisorAlias}`,
-      null,
-      input.acceptedAtLabel,
-    );
-
-    y = ensureSpace(y, 130);
-    y = drawSignatureSection(
-      doc,
-      y,
-      `Order Signed By Driver Name : ${input.driverName}`,
-      input.driverSignaturePng,
-      input.loadedAtLabel,
-    );
-
-    y = ensureSpace(y, 130);
-    y = drawSignatureSection(
-      doc,
-      y,
-      `Order Received By : ${input.offloaderName}`,
-      input.offloaderSignaturePng,
-      input.completedAtLabel,
-    );
-
-    y = ensureSpace(y, 80);
-    const disclaimerHeight = measureLegalDisclaimerHeight(doc);
-    y = ensureSpace(y, disclaimerHeight);
-    y = drawLegalDisclaimer(doc, y);
+    const signatureBlocks: SignatureBlock[] = [
+      {
+        captionLine: `Order Placed By : ${input.employeeName}`,
+        signaturePng: input.employeeSignaturePng,
+      },
+      {
+        captionLine: `Order Approved By Supervisor Name: ${input.supervisorAlias}`,
+        signaturePng: null,
+        whenLabel: input.acceptedAtLabel,
+      },
+      {
+        captionLine: `Order Signed By Driver Name : ${input.driverName}`,
+        signaturePng: input.driverSignaturePng,
+        whenLabel: input.loadedAtLabel,
+      },
+      {
+        captionLine: `Order Received By : ${input.offloaderName}`,
+        signaturePng: input.offloaderSignaturePng,
+        whenLabel: input.completedAtLabel,
+      },
+    ];
+    y = reserveSpaceForSignaturesAndDisclaimer(doc, y, signatureBlocks);
+    y = drawSignatureGrid(doc, y, signatureBlocks);
+    placeLegalDisclaimerOnLastPage(doc, y);
 
     drawPageNumbers(doc);
     doc.end();
@@ -658,7 +733,7 @@ export async function generateAndStoreApprovedOrderPdf(
   const { data: order, error: orderErr } = await admin
     .from("outlet_orders")
     .select(
-      "id, outlet_id, outlet_name, order_number, employee_name, employee_signature_path, grand_total, created_at, status, approved_pdf_path, supervisor_accepted_alias, supervisor_accepted_at",
+      "id, outlet_id, outlet_name, order_number, employee_name, employee_signature_path, grand_total, created_at, status, approved_pdf_path, supervisor_accepted_alias, supervisor_accepted_by, supervisor_accepted_at",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -686,8 +761,7 @@ export async function generateAndStoreApprovedOrderPdf(
   const grandTotal = Number(order.grand_total ?? 0);
   const grandFormatted = formatKwacha(grandTotal);
 
-  const supervisorAlias =
-    String(order.supervisor_accepted_alias ?? "").trim() || "Supervisor";
+  const supervisorAlias = await resolveSupervisorDisplayAlias(admin, order);
   const acceptedWhen = formatKitwePdfLabel(order.supervisor_accepted_at as string, "Accepted");
 
   let pdfBuffer: Buffer;
@@ -747,7 +821,7 @@ export async function generateAndStoreDriverHandoffPdf(
   const { data: order, error: orderErr } = await admin
     .from("outlet_orders")
     .select(
-      "id, outlet_id, outlet_name, order_number, employee_name, driver_id, driver_signature_path, loaded_at, created_at, status, handoff_pdf_path, grand_total",
+      "id, outlet_id, outlet_name, order_number, employee_name, driver_id, driver_name, driver_signature_path, loaded_at, created_at, status, handoff_pdf_path, grand_total",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -758,11 +832,15 @@ export async function generateAndStoreDriverHandoffPdf(
     return { ok: false, error: "Order is not loaded yet." };
   }
 
-  const { data: driver } = await admin
-    .from("delivery_drivers")
-    .select("name")
-    .eq("id", order.driver_id as string)
-    .maybeSingle();
+  let driver: { name: string } | null = null;
+  if (order.driver_id) {
+    const { data } = await admin
+      .from("delivery_drivers")
+      .select("name")
+      .eq("id", order.driver_id as string)
+      .maybeSingle();
+    driver = data;
+  }
 
   const lines = await loadOrderPdfLines(admin, orderId);
   const loadedLabel = new Intl.DateTimeFormat("en-GB", {
@@ -782,7 +860,10 @@ export async function generateAndStoreDriverHandoffPdf(
     order.driver_signature_path as string | null,
   );
 
-  const driverName = String(driver?.name ?? "Driver").trim() || "Driver";
+  const driverName = resolveDriverDisplayName(
+    order.driver_name as string | null,
+    driver?.name,
+  );
 
   let pdfBuffer: Buffer;
   try {
@@ -853,7 +934,7 @@ export async function generateAndStoreCompletedOrderPdf(
   const { data: order, error: orderErr } = await admin
     .from("outlet_orders")
     .select(
-      "id, outlet_id, outlet_name, order_number, employee_name, employee_signature_path, grand_total, created_at, status, supervisor_accepted_at, supervisor_accepted_alias, loaded_at, driver_id, driver_signature_path, completed_at, offloader_name, offloader_signature_path, completed_pdf_path",
+      "id, outlet_id, outlet_name, order_number, employee_name, employee_signature_path, grand_total, created_at, status, supervisor_accepted_at, supervisor_accepted_alias, supervisor_accepted_by, loaded_at, driver_id, driver_name, driver_signature_path, completed_at, offloader_name, offloader_signature_path, completed_pdf_path",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -864,14 +945,19 @@ export async function generateAndStoreCompletedOrderPdf(
     return { ok: false, error: "Order is not completed yet." };
   }
 
-  const { data: driver } = await admin
-    .from("delivery_drivers")
-    .select("name")
-    .eq("id", order.driver_id as string)
-    .maybeSingle();
+  let driver: { name: string } | null = null;
+  if (order.driver_id) {
+    const { data } = await admin
+      .from("delivery_drivers")
+      .select("name")
+      .eq("id", order.driver_id as string)
+      .maybeSingle();
+    driver = data;
+  }
 
   const lines = await loadOrderPdfLines(admin, orderId);
   const grandTotal = Number(order.grand_total ?? 0);
+  const supervisorAlias = await resolveSupervisorDisplayAlias(admin, order);
 
   const [employeeSignaturePng, driverSignaturePng, offloaderSignaturePng] = await Promise.all([
     loadSignaturePng(admin, order.employee_signature_path as string | null),
@@ -893,8 +979,8 @@ export async function generateAndStoreCompletedOrderPdf(
       ),
       completedAtLabel: formatKitwePdfLabel(order.completed_at as string, "Completed"),
       employeeName: String(order.employee_name ?? "").trim() || "—",
-      supervisorAlias: String(order.supervisor_accepted_alias ?? "").trim() || "Supervisor",
-      driverName: String(driver?.name ?? "Driver"),
+      supervisorAlias,
+      driverName: resolveDriverDisplayName(order.driver_name as string | null, driver?.name),
       offloaderName: String(order.offloader_name ?? "").trim() || "—",
       grandTotalFormatted: formatKwacha(grandTotal),
       lines,

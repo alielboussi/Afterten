@@ -7,6 +7,7 @@ import {
   type ManualOrderLine,
   type OrderRuleRow,
 } from "@/lib/orders/order-rule-qty";
+import { sortOrderLinesForDisplay } from "@/lib/orders/sort-order-lines";
 
 export type PortalOrderLineRow = {
   id: string;
@@ -20,6 +21,10 @@ export type PortalOrderLineRow = {
   line_total: number;
   is_auto: boolean;
   qty_adjusted: boolean;
+  product_id: string;
+  parent_product_id: string;
+  is_variant: boolean;
+  sort_order: number;
 };
 
 async function loadOrderRules(admin: SupabaseClient): Promise<OrderRuleRow[]> {
@@ -73,6 +78,20 @@ async function resolveParentProductId(
   return key;
 }
 
+async function resolveLineCatalog(
+  admin: SupabaseClient,
+  productId: string,
+  cache: Map<string, { parent_product_id: string; is_variant: boolean }>,
+): Promise<{ parent_product_id: string; is_variant: boolean }> {
+  const pid = productId.trim().toLowerCase();
+  const cached = cache.get(pid);
+  if (cached) return cached;
+  const parent = await resolveParentProductId(admin, pid);
+  const entry = { parent_product_id: parent, is_variant: parent !== pid };
+  cache.set(pid, entry);
+  return entry;
+}
+
 export async function loadPortalOrderLineRows(
   admin: SupabaseClient,
   orderId: string,
@@ -105,28 +124,38 @@ export async function loadPortalOrderLineRows(
 
   const autoQtyByProductId = computeAutoAddedQtyByProductId(manualLines, rules);
 
-  return items.map((row) => {
-    const pid = String(row.product_id ?? "").trim().toLowerCase();
-    const is_auto = autoIds.has(pid);
-    const storedQty = Number(row.qty);
-    const display_qty = displayQtyForOrderLine({
-      product_id: pid,
-      qty: storedQty,
-      is_auto,
-      autoQtyByProductId,
-    });
-    return {
-      id: String(row.id),
-      name: String(row.name),
-      display_qty,
-      stored_qty: storedQty,
-      uom: String(row.uom),
-      unit_cost: Number(row.unit_cost ?? 0),
-      units_per_order_unit: Number(row.units_per_order_unit),
-      total_units: Number(row.total_units),
-      line_total: Number(row.line_total),
-      is_auto,
-      qty_adjusted: is_auto && display_qty !== storedQty,
-    };
-  });
+  const catalogCache = new Map<string, { parent_product_id: string; is_variant: boolean }>();
+  const built = await Promise.all(
+    items.map(async (row) => {
+      const pid = String(row.product_id ?? "").trim().toLowerCase();
+      const is_auto = autoIds.has(pid);
+      const storedQty = Number(row.qty);
+      const display_qty = displayQtyForOrderLine({
+        product_id: pid,
+        qty: storedQty,
+        is_auto,
+        autoQtyByProductId,
+      });
+      const catalog = await resolveLineCatalog(admin, pid, catalogCache);
+      return {
+        id: String(row.id),
+        name: String(row.name),
+        display_qty,
+        stored_qty: storedQty,
+        uom: String(row.uom),
+        unit_cost: Number(row.unit_cost ?? 0),
+        units_per_order_unit: Number(row.units_per_order_unit),
+        total_units: Number(row.total_units),
+        line_total: Number(row.line_total),
+        is_auto,
+        qty_adjusted: is_auto && display_qty !== storedQty,
+        product_id: pid,
+        parent_product_id: catalog.parent_product_id,
+        is_variant: catalog.is_variant,
+        sort_order: Number(row.sort_order ?? 0),
+      };
+    }),
+  );
+
+  return sortOrderLinesForDisplay(built, rules);
 }

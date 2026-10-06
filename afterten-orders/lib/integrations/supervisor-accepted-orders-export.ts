@@ -81,6 +81,7 @@ type OrderRow = {
   grand_total: number;
   employee_name: string | null;
   driver_id: string | null;
+  driver_name: string | null;
   outlets: { active: boolean } | { active: boolean }[] | null;
 };
 
@@ -322,8 +323,10 @@ function orderHeaderFields(
     employee_name: compact ? null : order.employee_name?.trim() || null,
     grand_total: compact ? null : num(order.grand_total),
     driver_id: compact ? null : order.driver_id,
-    driver_name:
-      compact || !order.driver_id ? null : (cache.drivers.get(order.driver_id) ?? null),
+    driver_name: compact
+      ? null
+      : String(order.driver_name ?? "").trim() ||
+        (order.driver_id ? (cache.drivers.get(order.driver_id) ?? null) : null),
   };
 }
 
@@ -432,8 +435,8 @@ export async function fetchSupervisorAcceptedOrdersExport(
 
   let query = admin.from("outlet_orders").select(
     activeOnly
-      ? "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, supervisor_accepted_at, updated_at, grand_total, employee_name, driver_id, outlets!inner(active)"
-      : "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, supervisor_accepted_at, updated_at, grand_total, employee_name, driver_id, outlets(active)",
+      ? "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, supervisor_accepted_at, updated_at, grand_total, employee_name, driver_id, driver_name, outlets!inner(active)"
+      : "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, supervisor_accepted_at, updated_at, grand_total, employee_name, driver_id, driver_name, outlets(active)",
   );
 
   query = query

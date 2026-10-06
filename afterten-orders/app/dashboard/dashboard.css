@@ -1011,8 +1011,12 @@
 .at-orders-table .at-table th:nth-child(2) {
   text-align: left;
   padding-right: 1.25rem;
-  max-width: 18rem;
-  word-break: break-word;
+  min-width: 9rem;
+  white-space: nowrap;
+}
+
+.at-orderOutletCell {
+  white-space: nowrap;
 }
 
 .at-orders-table .at-table td:nth-child(3),

@@ -96,11 +96,12 @@ export function OrdersTable({ orders }: { orders: PortalOrderRow[] }) {
             <tr key={o.id}>
               <td>
                 <strong>{o.order_number}</strong>
-                <div className="at-orderIdMuted">{o.id}</div>
               </td>
               <td>
-                {o.outlet_name}
-                <div className="at-orderIdMuted">{o.outlet_id}</div>
+                <span className="at-orderOutletCell">
+                  {o.outlet_name}{" "}
+                  <span className="at-orderIdMuted">({o.outlet_id})</span>
+                </span>
               </td>
               <td>
                 <span className={`at-orderStatusPill ${statusClass(o.status)}`}>
