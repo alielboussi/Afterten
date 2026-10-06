@@ -14,6 +14,7 @@ export type PortalOrderLineRow = {
   display_qty: number;
   stored_qty: number;
   uom: string;
+  unit_cost: number;
   units_per_order_unit: number;
   total_units: number;
   line_total: number;
@@ -79,7 +80,7 @@ export async function loadPortalOrderLineRows(
   const { data: items } = await admin
     .from("outlet_order_items")
     .select(
-      "id, product_id, name, qty, uom, line_total, units_per_order_unit, total_units, sort_order",
+      "id, product_id, name, qty, uom, unit_cost, line_total, units_per_order_unit, total_units, sort_order",
     )
     .eq("order_id", orderId)
     .order("sort_order", { ascending: true });
@@ -120,6 +121,7 @@ export async function loadPortalOrderLineRows(
       display_qty,
       stored_qty: storedQty,
       uom: String(row.uom),
+      unit_cost: Number(row.unit_cost ?? 0),
       units_per_order_unit: Number(row.units_per_order_unit),
       total_units: Number(row.total_units),
       line_total: Number(row.line_total),

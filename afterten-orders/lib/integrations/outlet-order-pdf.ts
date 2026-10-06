@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadPortalOrderLineRows } from "@/lib/portal/order-lines-display";
 
 const LOGO_PATH = resolveLogoPath();
 
@@ -65,9 +66,8 @@ function drawSignatureSection(
   const boxX = CONTENT_LEFT + (CONTENT_WIDTH - boxW) / 2;
 
   if (signaturePng && signaturePng.length > 0) {
-    doc.lineWidth(1).strokeColor("#d6d3d1").rect(boxX, y, boxW, boxH).stroke();
-    doc.image(signaturePng, boxX + 4, y + 3, {
-      fit: [boxW - 8, boxH - 6],
+    doc.image(signaturePng, boxX, y, {
+      fit: [boxW, boxH],
       align: "center",
       valign: "center",
     });
@@ -115,10 +115,21 @@ export type OrderPdfLine = {
 };
 
 const LEGAL_DISCLAIMER =
-  "The above names and signatories show above, approve and witness that all information included in this document is accurate and liable for legal use.";
+  "Each person named above certifies that the information in this order document is accurate to the best of their knowledge. Their signatures confirm approval of that information in connection with this order.";
+
+const DISCLAIMER_FONT_SIZE = 32;
+
+function applyDisclaimerFont(doc: InstanceType<typeof PDFDocument>) {
+  doc.font("Helvetica-Bold").fontSize(DISCLAIMER_FONT_SIZE).fillColor("#44403c");
+}
+
+function measureLegalDisclaimerHeight(doc: InstanceType<typeof PDFDocument>): number {
+  applyDisclaimerFont(doc);
+  return doc.heightOfString(LEGAL_DISCLAIMER, { width: CONTENT_WIDTH, align: "center" }) + 10;
+}
 
 function drawLegalDisclaimer(doc: InstanceType<typeof PDFDocument>, y: number): number {
-  doc.font("Helvetica-Bold").fontSize(9).fillColor("#44403c");
+  applyDisclaimerFont(doc);
   const h = doc.heightOfString(LEGAL_DISCLAIMER, { width: CONTENT_WIDTH, align: "center" });
   doc.text(LEGAL_DISCLAIMER, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
   return y + h + 10;
@@ -371,9 +382,7 @@ export async function renderOutletOrderPdf(input: OrderPdfInput): Promise<Buffer
     });
 
     const signatureBlockHeight = input.signatureWhenLabel?.trim() ? 112 : 92;
-    doc.font("Helvetica-Bold").fontSize(9);
-    const disclaimerHeight =
-      doc.heightOfString(LEGAL_DISCLAIMER, { width: CONTENT_WIDTH, align: "center" }) + 10;
+    const disclaimerHeight = measureLegalDisclaimerHeight(doc);
     const ensureSpace = (needed: number) => {
       if (y + needed <= contentBottomLimit()) return;
       doc.addPage();
@@ -481,9 +490,7 @@ export async function renderCombinedOrderPdf(input: CombinedOrderPdfInput): Prom
     );
 
     y = ensureSpace(y, 80);
-    doc.font("Helvetica-Bold").fontSize(9);
-    const disclaimerHeight =
-      doc.heightOfString(LEGAL_DISCLAIMER, { width: CONTENT_WIDTH, align: "center" }) + 10;
+    const disclaimerHeight = measureLegalDisclaimerHeight(doc);
     y = ensureSpace(y, disclaimerHeight);
     y = drawLegalDisclaimer(doc, y);
 
@@ -492,21 +499,28 @@ export async function renderCombinedOrderPdf(input: CombinedOrderPdfInput): Prom
   });
 }
 
-async function loadAutoAddedProductIds(admin: SupabaseClient): Promise<Set<string>> {
-  const { data: rules, error: rulesErr } = await admin
-    .from("product_order_rules")
-    .select("id")
-    .eq("active", true);
-  if (rulesErr || !rules?.length) return new Set();
+async function loadOrderPdfLines(admin: SupabaseClient, orderId: string): Promise<OrderPdfLine[]> {
+  const rows = await loadPortalOrderLineRows(admin, orderId);
+  return rows.map(mapPortalLineToPdfLine);
+}
 
-  const ruleIds = rules.map((r) => r.id as string);
-  const { data: adds, error: addsErr } = await admin
-    .from("product_order_rule_additions")
-    .select("added_product_id")
-    .in("rule_id", ruleIds);
-  if (addsErr || !adds?.length) return new Set();
-
-  return new Set(adds.map((a) => String(a.added_product_id ?? "").toLowerCase()).filter(Boolean));
+function mapPortalLineToPdfLine(row: {
+  name: string;
+  display_qty: number;
+  uom: string;
+  unit_cost: number;
+  line_total: number;
+  is_auto: boolean;
+}): OrderPdfLine {
+  const qty = row.display_qty;
+  return {
+    name: row.name,
+    qty: Number.isInteger(qty) ? String(qty) : qty.toFixed(2),
+    uom: row.uom,
+    price: formatLineAmountPdf(row.unit_cost),
+    amount: formatLineAmountPdf(row.line_total),
+    isSub: row.is_auto,
+  };
 }
 
 async function loadDriverSignaturePng(
@@ -556,13 +570,7 @@ export async function generateAndStoreOutletOrderPdf(
   if (orderErr) return { ok: false, error: orderErr.message };
   if (!order) return { ok: false, error: "Order not found." };
 
-  const { data: items, error: itemsErr } = await admin
-    .from("outlet_order_items")
-    .select("name, qty, uom, unit_cost, line_total, sort_order")
-    .eq("order_id", orderId)
-    .order("sort_order", { ascending: true });
-
-  if (itemsErr) return { ok: false, error: itemsErr.message };
+  const lines = await loadOrderPdfLines(admin, orderId);
 
   const placedAtLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Lusaka",
@@ -578,10 +586,6 @@ export async function generateAndStoreOutletOrderPdf(
 
   const grandTotal = Number(order.grand_total ?? 0);
   const grandFormatted = formatKwacha(grandTotal);
-
-  const lines: OrderPdfLine[] = (items ?? []).map((row) =>
-    mapOrderItemToPdfLine(row, false),
-  );
 
   const signaturePng = await loadSignaturePng(
     admin,
@@ -665,15 +669,7 @@ export async function generateAndStoreApprovedOrderPdf(
     return { ok: false, error: "Order is not supervisor-approved yet." };
   }
 
-  const { data: items, error: itemsErr } = await admin
-    .from("outlet_order_items")
-    .select("product_id, name, qty, uom, unit_cost, line_total, sort_order")
-    .eq("order_id", orderId)
-    .order("sort_order", { ascending: true });
-
-  if (itemsErr) return { ok: false, error: itemsErr.message };
-
-  const autoAddedIds = await loadAutoAddedProductIds(admin);
+  const lines = await loadOrderPdfLines(admin, orderId);
 
   const placedAtLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Lusaka",
@@ -689,11 +685,6 @@ export async function generateAndStoreApprovedOrderPdf(
 
   const grandTotal = Number(order.grand_total ?? 0);
   const grandFormatted = formatKwacha(grandTotal);
-
-  const lines: OrderPdfLine[] = (items ?? []).map((row) => {
-    const pid = String(row.product_id ?? "").toLowerCase();
-    return mapOrderItemToPdfLine(row, autoAddedIds.has(pid));
-  });
 
   const supervisorAlias =
     String(order.supervisor_accepted_alias ?? "").trim() || "Supervisor";
@@ -756,7 +747,7 @@ export async function generateAndStoreDriverHandoffPdf(
   const { data: order, error: orderErr } = await admin
     .from("outlet_orders")
     .select(
-      "id, outlet_id, outlet_name, order_number, employee_name, driver_id, driver_signature_path, loaded_at, created_at, status, handoff_pdf_path",
+      "id, outlet_id, outlet_name, order_number, employee_name, driver_id, driver_signature_path, loaded_at, created_at, status, handoff_pdf_path, grand_total",
     )
     .eq("id", orderId)
     .maybeSingle();
@@ -773,14 +764,7 @@ export async function generateAndStoreDriverHandoffPdf(
     .eq("id", order.driver_id as string)
     .maybeSingle();
 
-  const { data: items, error: itemsErr } = await admin
-    .from("outlet_order_items")
-    .select("product_id, name, qty, uom, unit_cost, line_total, sort_order")
-    .eq("order_id", orderId)
-    .order("sort_order", { ascending: true });
-  if (itemsErr) return { ok: false, error: itemsErr.message };
-
-  const autoAddedIds = await loadAutoAddedProductIds(admin);
+  const lines = await loadOrderPdfLines(admin, orderId);
   const loadedLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Lusaka",
     weekday: "short",
@@ -792,11 +776,6 @@ export async function generateAndStoreDriverHandoffPdf(
     second: "2-digit",
     hour12: false,
   }).format(new Date((order.loaded_at as string) ?? (order.created_at as string)));
-
-  const lines: OrderPdfLine[] = (items ?? []).map((row) => {
-    const pid = String(row.product_id ?? "").toLowerCase();
-    return mapOrderItemToPdfLine(row, autoAddedIds.has(pid));
-  });
 
   const signaturePng = await loadDriverSignaturePng(
     admin,
@@ -812,9 +791,7 @@ export async function generateAndStoreDriverHandoffPdf(
       outletId: String(order.outlet_id),
       orderNumber: String(order.order_number),
       placedAtLabel: `Loaded ${loadedLabel} (Kitwe)`,
-      grandTotalFormatted: formatKwacha(
-        (items ?? []).reduce((sum, row) => sum + Number(row.line_total ?? 0), 0),
-      ),
+      grandTotalFormatted: formatKwacha(Number(order.grand_total ?? 0)),
       lines,
       signatureCaption: `Order Signed By Driver Name : ${driverName}`,
       signaturePng,
@@ -893,20 +870,8 @@ export async function generateAndStoreCompletedOrderPdf(
     .eq("id", order.driver_id as string)
     .maybeSingle();
 
-  const { data: items, error: itemsErr } = await admin
-    .from("outlet_order_items")
-    .select("product_id, name, qty, uom, unit_cost, line_total, sort_order")
-    .eq("order_id", orderId)
-    .order("sort_order", { ascending: true });
-  if (itemsErr) return { ok: false, error: itemsErr.message };
-
-  const autoAddedIds = await loadAutoAddedProductIds(admin);
+  const lines = await loadOrderPdfLines(admin, orderId);
   const grandTotal = Number(order.grand_total ?? 0);
-
-  const lines: OrderPdfLine[] = (items ?? []).map((row) => {
-    const pid = String(row.product_id ?? "").toLowerCase();
-    return mapOrderItemToPdfLine(row, autoAddedIds.has(pid));
-  });
 
   const [employeeSignaturePng, driverSignaturePng, offloaderSignaturePng] = await Promise.all([
     loadSignaturePng(admin, order.employee_signature_path as string | null),
@@ -968,29 +933,6 @@ export async function generateAndStoreCompletedOrderPdf(
   if (updateErr) return { ok: false, error: updateErr.message };
 
   return { ok: true, pdfPath, fileName };
-}
-
-function mapOrderItemToPdfLine(
-  row: {
-    name: unknown;
-    qty: unknown;
-    uom: unknown;
-    unit_cost: unknown;
-    line_total: unknown;
-  },
-  isSub: boolean,
-): OrderPdfLine {
-  const qty = Number(row.qty ?? 0);
-  const unitCost = Number(row.unit_cost ?? 0);
-  const lineTotal = Number(row.line_total ?? 0);
-  return {
-    name: String(row.name ?? ""),
-    qty: Number.isInteger(qty) ? String(qty) : qty.toFixed(2),
-    uom: String(row.uom ?? ""),
-    price: formatLineAmountPdf(unitCost),
-    amount: formatLineAmountPdf(lineTotal),
-    isSub,
-  };
 }
 
 function formatKwacha(amount: number): string {
