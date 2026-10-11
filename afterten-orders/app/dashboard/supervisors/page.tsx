@@ -1,4 +1,5 @@
 import { getSupervisorsListData } from "@/lib/portal/supervisors-list-cache";
+import { AddSupervisorForm } from "./AddSupervisorForm";
 import { SupervisorUsersTable } from "./SupervisorUsersTable";
 import styles from "../admins/admins.module.css";
 
@@ -18,9 +19,9 @@ export default async function SupervisorsPage() {
     <div className="at-page-shell-table">
       <h1 className="at-page-title">Supervisors</h1>
       <p className="at-page-lead">
-        Supervisor app accounts only (Google sign-in on the Supervisor mobile app). New supervisors are
-        added from the <strong>Dashboard</strong> popup or when they complete Google sign-in on the app.
-        Set an <strong>alias</strong>, then <strong>Approve supervisor</strong>.
+        Supervisor app accounts (Google sign-in on the Supervisor mobile app). Add someone below or from
+        the <strong>Dashboard</strong> popup when they sign in first. Set an <strong>alias</strong>, then{" "}
+        <strong>Approve supervisor</strong>.
       </p>
 
       {loadError && (
@@ -32,15 +33,15 @@ export default async function SupervisorsPage() {
         </p>
       )}
 
+      <div className="at-page-card" style={{ marginBottom: 16 }}>
+        <AddSupervisorForm />
+      </div>
+
       <div className="at-page-card">
         {!loadError && supervisors.length === 0 && (
           <p className={styles.empty}>
-            No supervisor sign-ins yet. In the <strong>Supervisor</strong> app (not Orders), tap{" "}
-            <strong>Continue with Google</strong> and finish sign-in—you should see{" "}
-            <strong>Awaiting approval</strong>. If the app shows an error, open Supabase SQL Editor and
-            run{" "}
-            <code>select email, approved from supervisor_profiles;</code> to confirm a row exists (same
-            project as <code>NEXT_PUBLIC_SUPABASE_URL</code>).
+            No supervisors yet. Add one above, or have them sign in on the <strong>Supervisor</strong> app
+            with <strong>Continue with Google</strong> (they will show as pending approval).
           </p>
         )}
         {!loadError && supervisors.length > 0 && <SupervisorUsersTable supervisors={supervisors} />}

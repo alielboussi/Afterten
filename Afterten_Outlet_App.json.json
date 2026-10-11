@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "724915487662",
+    "project_id": "orderapp-40ff6",
+    "storage_bucket": "orderapp-40ff6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:724915487662:android:2dcb4f3e231447ddfbbe3f",
+        "android_client_info": {
+          "package_name": "com.afterten.orders"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxtbrKLKPM4oX-L54rEvqCxxNrVqTjzVM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

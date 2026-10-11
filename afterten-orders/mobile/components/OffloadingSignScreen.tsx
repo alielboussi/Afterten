@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -52,6 +52,7 @@ export function OffloadingSignScreen({
   const [passcodeVerifyError, setPasscodeVerifyError] = useState<string | null>(null);
   const [passcodeVerifying, setPasscodeVerifying] = useState(false);
   const [signatureValid, setSignatureValid] = useState(false);
+  const passcodeVerifySeq = useRef(0);
 
   function resetPasscodeVerification() {
     setPasscodeVerified(false);
@@ -60,26 +61,39 @@ export function OffloadingSignScreen({
     signatureRef.current?.clear();
   }
 
-  async function verifyPasscodeForSelectedEmployee() {
-    if (!selectedEmployeeId || passcode.trim().length < 4) {
-      resetPasscodeVerification();
-      return;
-    }
-    setPasscodeVerifying(true);
-    setPasscodeVerifyError(null);
-    const result = await verifyOutletEmployeePasscode(supabase, selectedEmployeeId, passcode);
-    setPasscodeVerifying(false);
-    if (!result.ok) {
-      resetPasscodeVerification();
-      setPasscodeVerifyError(result.error);
-      return;
-    }
-    if (result.displayName) {
-      setSelectedEmployeeName(result.displayName);
-    }
-    setPasscodeVerified(true);
-    setPasscodeVerifyError(null);
-  }
+  const verifyPasscodeForSelectedEmployee = useCallback(
+    async (seq: number) => {
+      if (!selectedEmployeeId || passcode.trim().length < 4) {
+        resetPasscodeVerification();
+        return;
+      }
+      setPasscodeVerifying(true);
+      setPasscodeVerifyError(null);
+      const result = await verifyOutletEmployeePasscode(supabase, selectedEmployeeId, passcode);
+      if (seq !== passcodeVerifySeq.current) return;
+      setPasscodeVerifying(false);
+      if (!result.ok) {
+        resetPasscodeVerification();
+        setPasscodeVerifyError(result.error);
+        return;
+      }
+      if (result.displayName) {
+        setSelectedEmployeeName(result.displayName);
+      }
+      setPasscodeVerified(true);
+      setPasscodeVerifyError(null);
+    },
+    [passcode, selectedEmployeeId, supabase],
+  );
+
+  useEffect(() => {
+    if (!selectedEmployeeId || passcode.trim().length < 4) return;
+    const seq = ++passcodeVerifySeq.current;
+    const timer = setTimeout(() => {
+      void verifyPasscodeForSelectedEmployee(seq);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [passcode, selectedEmployeeId, verifyPasscodeForSelectedEmployee]);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,7 +261,6 @@ export function OffloadingSignScreen({
                 setPasscode(text);
                 resetPasscodeVerification();
               }}
-              onBlur={() => void verifyPasscodeForSelectedEmployee()}
               secureTextEntry
               keyboardType="number-pad"
               editable={!busy && !passcodeVerifying}
@@ -259,8 +272,6 @@ export function OffloadingSignScreen({
               <Text style={styles.error}>{passcodeVerifyError}</Text>
             ) : passcodeVerified ? (
               <Text style={styles.passcodeOkHint}>Passcode accepted — you may sign below.</Text>
-            ) : passcode.trim().length >= 4 ? (
-              <Text style={styles.hintMuted}>Leave the field to verify your passcode.</Text>
             ) : null}
           </>
         ) : null}
