@@ -6,9 +6,26 @@ export type OutletEmployeeOption = {
   displayName: string;
 };
 
+let employeesCache: { employees: OutletEmployeeOption[]; fetchedAt: number } | null = null;
+const EMPLOYEES_CACHE_TTL_MS = 15 * 60 * 1000;
+
+export function clearOutletEmployeesCache(): void {
+  employeesCache = null;
+}
+
 export async function fetchOutletEmployeesForApp(
   supabase: SupabaseClient,
+  options?: { force?: boolean },
 ): Promise<{ ok: true; employees: OutletEmployeeOption[] } | { ok: false; error: string }> {
+  const now = Date.now();
+  if (
+    !options?.force &&
+    employeesCache &&
+    now - employeesCache.fetchedAt < EMPLOYEES_CACHE_TTL_MS
+  ) {
+    return { ok: true, employees: employeesCache.employees };
+  }
+
   const { data, error } = await supabase.rpc("list_outlet_employees_for_app");
   if (error) {
     return { ok: false, error: error.message };
@@ -24,5 +41,6 @@ export async function fetchOutletEmployeesForApp(
     })
     .filter((row): row is OutletEmployeeOption => row != null);
 
+  employeesCache = { employees, fetchedAt: now };
   return { ok: true, employees };
 }

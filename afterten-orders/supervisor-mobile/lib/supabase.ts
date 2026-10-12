@@ -42,9 +42,6 @@ export function supervisorDisplayName(profile: SupervisorProfile): string {
 export async function registerAndFetchSupervisorProfile(
   supabase: SupabaseClient,
 ): Promise<{ profile: SupervisorProfile | null; error: string | null }> {
-  const { error: regErr } = await supabase.rpc("register_supervisor_app_user");
-  if (regErr) return { profile: null, error: regErr.message };
-
   const { data, error } = await supabase.rpc("get_supervisor_app_profile");
   if (error) return { profile: null, error: error.message };
   if (!data || typeof data !== "object") {

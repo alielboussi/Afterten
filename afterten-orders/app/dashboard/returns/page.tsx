@@ -42,7 +42,7 @@ export default async function ReturnsPage() {
         "id, return_number, outlet_id, outlet_name, status, employee_name, created_at, photo_path, pdf_path",
       )
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(150);
     if (error) throw new Error(error.message);
 
     returns = await Promise.all(

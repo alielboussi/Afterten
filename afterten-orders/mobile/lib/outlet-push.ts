@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { markPushRegistrationSuccess, shouldSkipPushRegistration } from "./push-register-session";
 
 function isExpoGo(): boolean {
   return (
@@ -34,6 +35,9 @@ export async function registerOutletPushNotifications(
       ok: false,
       reason: "Remote push needs an EAS preview/production build (not Expo Go).",
     };
+  }
+  if (shouldSkipPushRegistration()) {
+    return { ok: true };
   }
 
   await configureNotificationHandler();
@@ -83,5 +87,6 @@ export async function registerOutletPushNotifications(
     p_platform: Platform.OS,
   });
   if (error) return { ok: false, reason: error.message };
+  markPushRegistrationSuccess();
   return { ok: true };
 }

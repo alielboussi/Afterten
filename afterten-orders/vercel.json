@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/archive-completed-orders",
-      "schedule": "0 4 * * 0"
+      "schedule": "15 3 * * *"
     }
   ]
 }

@@ -153,12 +153,12 @@ function AppShell() {
     setOrderFlowActive(false);
     setOrderSaveError(null);
     setSaveToast(`Order ${result.orderNumber} saved.`);
-    void loadProducts();
+    void loadProducts({ force: true });
   }
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (options?: { force?: boolean }) => {
     if (!supabase) return;
-    const { products: rows, error: err } = await fetchOutletProducts(supabase);
+    const { products: rows, error: err } = await fetchOutletProducts(supabase, options);
     setProducts(rows);
     setProductsError(err);
     if (!err && rows.length > 0) {

@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   }
 
   const { data: batch, error: batchErr } = await admin.rpc("archive_completed_orders_batch", {
-    p_limit: 40,
+    p_limit: 200,
   });
   if (batchErr) {
     return NextResponse.json({ error: batchErr.message }, { status: 500 });

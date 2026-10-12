@@ -167,54 +167,60 @@ function mapOutletProduct(raw: Record<string, unknown>): OutletProduct {
   };
 }
 
+let productsCache: { products: OutletProduct[]; fetchedAt: number } | null = null;
+const PRODUCTS_CACHE_TTL_MS = 20 * 60 * 1000;
+
+export function clearOutletProductsCache(): void {
+  productsCache = null;
+}
+
 export async function fetchOutletProducts(
   supabase: ReturnType<typeof createSupabaseClient>,
+  options?: { force?: boolean },
 ): Promise<{ products: OutletProduct[]; error: string | null }> {
+  const now = Date.now();
+  if (!options?.force && productsCache && now - productsCache.fetchedAt < PRODUCTS_CACHE_TTL_MS) {
+    return { products: productsCache.products, error: null };
+  }
+
   const { data, error } = await supabase.rpc("list_outlet_products");
   if (error) return { products: [], error: error.message };
   const products = (data ?? []).map((row: Record<string, unknown>) =>
     applyParentCatalogToProduct(mapOutletProduct(row)),
   );
+  productsCache = { products, fetchedAt: now };
   return { products, error: null };
 }
 
 export async function fetchOutletProfile(
   supabase: ReturnType<typeof createSupabaseClient>,
 ): Promise<{ profile: OutletProfile | null; error: string | null }> {
-  const { data: isAdmin, error: adminErr } = await supabase.rpc("is_portal_admin");
-  if (adminErr) return { profile: null, error: adminErr.message };
-  if (isAdmin) {
+  const { data, error } = await supabase.rpc("get_outlet_app_profile");
+  if (error) return { profile: null, error: error.message };
+
+  const payload = data as Record<string, unknown> | null;
+  const errCode = typeof payload?.error === "string" ? payload.error : null;
+  if (errCode === "portal_admin") {
     await supabase.auth.signOut();
     return { profile: null, error: "Portal admin accounts cannot use the outlet app." };
   }
-
-  const {
-    data: { user },
-    error: userErr,
-  } = await supabase.auth.getUser();
-  if (userErr) return { profile: null, error: userErr.message };
-  if (!user) return { profile: null, error: "Not signed in." };
-
-  const { data, error } = await supabase
-    .from("app_profiles")
-    .select(
-      "user_id, email, alias, outlet_id, outlet_name, active, profile_kind, outlets ( name )",
-    )
-    .eq("user_id", user.id)
-    .eq("profile_kind", "outlet_app")
-    .maybeSingle();
-
-  if (error) return { profile: null, error: error.message };
-  if (!data) return { profile: null, error: "No outlet profile for this account." };
-  if (!data.active) return { profile: null, error: "This outlet account is disabled." };
-
-  const profile = data as OutletProfile;
-  if (!profile.outlet_name?.trim()) {
-    const { data: rpcName } = await supabase.rpc("outlet_app_display_name");
-    if (typeof rpcName === "string" && rpcName.trim()) {
-      return { profile: { ...profile, outlet_name: rpcName.trim() }, error: null };
-    }
+  if (errCode === "inactive") {
+    return { profile: null, error: "This outlet account is disabled." };
   }
+  if (errCode === "no_profile" || !payload?.profile || typeof payload.profile !== "object") {
+    return { profile: null, error: "No outlet profile for this account." };
+  }
+
+  const row = payload.profile as Record<string, unknown>;
+  const profile: OutletProfile = {
+    user_id: String(row.user_id ?? ""),
+    email: String(row.email ?? ""),
+    alias: row.alias != null ? String(row.alias) : null,
+    outlet_id: String(row.outlet_id ?? ""),
+    outlet_name: String(row.outlet_name ?? ""),
+    active: Boolean(row.active),
+    profile_kind: String(row.profile_kind ?? "outlet_app"),
+  };
 
   return { profile, error: null };
 }

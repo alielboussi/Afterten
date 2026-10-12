@@ -69,15 +69,11 @@ export async function fetchOrderSummaryPreview(
     return { preview: null, error: "Add at least one product." };
   }
 
-  const [orderRes, rulesRes] = await Promise.all([
-    supabase.rpc("preview_outlet_order_number"),
-    supabase.rpc("list_outlet_order_rules"),
-  ]);
+  const { data: checkoutCtx, error: checkoutErr } = await supabase.rpc("get_outlet_checkout_context");
+  if (checkoutErr) return { preview: null, error: checkoutErr.message };
 
-  if (orderRes.error) return { preview: null, error: orderRes.error.message };
-  if (rulesRes.error) return { preview: null, error: rulesRes.error.message };
-
-  const rules = parseRules(rulesRes.data);
+  const ctxRow = checkoutCtx as Record<string, unknown> | null;
+  const rules = parseRules(ctxRow?.rules);
   const addedIds = [...new Set(rules.map((r) => r.added_product_id))];
   let catalogById = new Map<string, CatalogProductBrief>();
 
@@ -90,10 +86,9 @@ export async function fetchOrderSummaryPreview(
   }
 
   const groups = buildSummaryGroups(products, cartQty, rules, catalogById);
+  const orderNumberRaw = ctxRow?.order_number;
   const orderNumber =
-    typeof orderRes.data === "string" && orderRes.data.trim()
-      ? orderRes.data.trim()
-      : "—";
+    typeof orderNumberRaw === "string" && orderNumberRaw.trim() ? orderNumberRaw.trim() : "—";
 
   return {
     preview: { orderNumber, groups },

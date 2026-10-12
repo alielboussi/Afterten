@@ -25,7 +25,8 @@ export function subscribeToNewOutletOrders(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "outlet_orders" },
       (payload) => {
-        const row = payload.new as OrderInsertRow;
+        const row = payload.new as OrderInsertRow & { status?: string };
+        if (row.status && row.status !== "placed") return;
         onNewOrder(formatNewOutletOrderMessage(row));
       },
     )
