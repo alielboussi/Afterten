@@ -175,11 +175,13 @@ export async function completeDriverHandoff(
   orderId: string,
   driverId: string,
   driverSignaturePath: string,
+  supervisorSignaturePath?: string | null,
 ): Promise<{ error: string | null }> {
   const { error } = await supabase.rpc("complete_driver_handoff", {
     p_order_id: orderId,
     p_driver_id: driverId,
     p_driver_signature_path: driverSignaturePath,
+    p_supervisor_signature_path: supervisorSignaturePath ?? null,
   });
   return { error: error?.message ?? null };
 }

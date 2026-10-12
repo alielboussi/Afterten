@@ -48,6 +48,15 @@ export type SupervisorAcceptedOrderExportRecord = {
   offloader_name?: string | null;
   driver_signature_url?: string | null;
   offloader_signature_url?: string | null;
+  outlet_employee_signature_url?: string | null;
+  supervisor_dispatch_signature_url?: string | null;
+  order_dispatched_at?: string | null;
+  order_products_qty_original?: number | null;
+  order_variants_qty_original?: number | null;
+  order_automatically_added_products_qty_original?: number | null;
+  order_products_qty_received?: number | null;
+  order_variants_qty_received?: number | null;
+  order_automatically_added_products_qty_received?: number | null;
 };
 
 export type SupervisorAcceptedOrdersExportResponse = {
@@ -98,6 +107,9 @@ type OrderRow = {
   driver_signature_path: string | null;
   offloader_name: string | null;
   offloader_signature_path: string | null;
+  employee_signature_path: string | null;
+  supervisor_dispatch_signature_path: string | null;
+  dispatched_at: string | null;
   outlets: { active: boolean } | { active: boolean }[] | null;
 };
 
@@ -105,13 +117,19 @@ type ItemRow = {
   id: string;
   order_id: string;
   product_id: string;
+  variant_key?: string;
   name: string;
   qty: number;
+  qty_received?: number | null;
   uom: string;
   line_total: number;
   units_per_order_unit: number;
   total_units: number;
   sort_order: number;
+};
+
+type PlacedItemRow = Omit<ItemRow, "id" | "qty_received"> & {
+  order_id: string;
 };
 
 type ProductBrief = { product_id: string; name: string };
@@ -212,7 +230,7 @@ async function signedStorageUrl(
 }
 
 const ORDER_SELECT_FIELDS =
-  "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, completed_at, supervisor_accepted_at, supervisor_accepted_alias, updated_at, grand_total, employee_name, driver_id, driver_name, driver_signature_path, offloader_name, offloader_signature_path";
+  "id, outlet_id, outlet_name, order_number, status, created_at, loaded_at, completed_at, dispatched_at, supervisor_accepted_at, supervisor_accepted_alias, updated_at, grand_total, employee_name, employee_signature_path, driver_id, driver_name, driver_signature_path, supervisor_dispatch_signature_path, offloader_name, offloader_signature_path";
 
 async function loadAutoAddedProductIds(admin: SupabaseClient): Promise<Set<string>> {
   const { data: rules } = await admin.from("product_order_rules").select("id").eq("active", true);
@@ -358,6 +376,7 @@ function orderHeaderFields(
     order_status: String(order.status),
     order_placed_at: order.created_at,
     order_loaded_at: order.loaded_at,
+    order_dispatched_at: order.dispatched_at ?? order.loaded_at,
     supervisor_accepted_at: order.supervisor_accepted_at,
     supervisor_revised: supervisorRevised(order),
     employee_name: compact ? null : order.employee_name?.trim() || null,
@@ -416,11 +435,72 @@ function emptyLineFields(): Pick<
   };
 }
 
+function findPlacedLineMatch(
+  placedLines: PlacedItemRow[],
+  item: ItemRow,
+): PlacedItemRow | null {
+  const pid = String(item.product_id ?? "").trim().toLowerCase();
+  const sort = item.sort_order;
+  const exact = placedLines.find(
+    (p) =>
+      String(p.product_id).trim().toLowerCase() === pid &&
+      p.sort_order === sort,
+  );
+  if (exact) return exact;
+  return placedLines.find((p) => String(p.product_id).trim().toLowerCase() === pid) ?? null;
+}
+
+function applyOriginalQtyFields(
+  row: SupervisorAcceptedOrderExportRecord,
+  placed: PlacedItemRow,
+  cache: CatalogCache,
+  detail: IntegrationDetailLevel,
+): void {
+  const pid = String(placed.product_id ?? "").trim();
+  const pidKey = pid.toLowerCase();
+  const qty = num(placed.qty);
+
+  if (cache.autoIds.has(pidKey)) {
+    row.order_automatically_added_products_qty_original = qty;
+    return;
+  }
+
+  const identity = resolveIdentity(cache, pid, String(placed.name ?? ""));
+  if (identity.isVariant) {
+    row.order_variants_qty_original = qty;
+  } else {
+    row.order_products_qty_original = qty;
+  }
+}
+
+function applyReceivedQtyFields(
+  row: SupervisorAcceptedOrderExportRecord,
+  item: ItemRow,
+  cache: CatalogCache,
+): void {
+  const received = item.qty_received != null ? num(item.qty_received) : null;
+  if (received == null) return;
+
+  const pid = String(item.product_id ?? "").trim();
+  const pidKey = pid.toLowerCase();
+  if (cache.autoIds.has(pidKey)) {
+    row.order_automatically_added_products_qty_received = received;
+    return;
+  }
+  const identity = resolveIdentity(cache, pid, String(item.name ?? ""));
+  if (identity.isVariant) {
+    row.order_variants_qty_received = received;
+  } else {
+    row.order_products_qty_received = received;
+  }
+}
+
 function applyLineToRecord(
   row: SupervisorAcceptedOrderExportRecord,
   item: ItemRow,
   cache: CatalogCache,
   detail: IntegrationDetailLevel,
+  placedMatch?: PlacedItemRow | null,
 ): void {
   const pid = String(item.product_id ?? "").trim();
   const pidKey = pid.toLowerCase();
@@ -463,6 +543,11 @@ function applyLineToRecord(
     row.order_products_qty = qty;
     row.order_products_uom = uom;
   }
+
+  if (placedMatch) {
+    applyOriginalQtyFields(row, placedMatch, cache, detail);
+  }
+  applyReceivedQtyFields(row, item, cache);
 }
 
 export async function fetchOrdersIntegrationExport(
@@ -501,7 +586,7 @@ export async function fetchOrdersIntegrationExport(
       .in("status", ["accepted", "loaded", "completed"])
       .not("supervisor_accepted_at", "is", null);
   } else if (kind === "outlet_placed") {
-    query = query.eq("status", "placed");
+    query = query.not("employee_signed_at", "is", null);
   } else if (kind === "driver_handoff") {
     query = query
       .in("status", ["loaded", "completed"])
@@ -554,11 +639,13 @@ export async function fetchOrdersIntegrationExport(
   const driverIds = orders.map((o) => o.driver_id).filter(Boolean) as string[];
 
   let items: ItemRow[] = [];
-  if (view === "lines") {
+  let placedItems: PlacedItemRow[] = [];
+
+  if (view === "lines" && kind !== "outlet_placed") {
     const { data: itemRows, error: itemsErr } = await admin
       .from("outlet_order_items")
       .select(
-        "id, order_id, product_id, name, qty, uom, line_total, units_per_order_unit, total_units, sort_order",
+        "id, order_id, product_id, variant_key, name, qty, qty_received, uom, line_total, units_per_order_unit, total_units, sort_order",
       )
       .in("order_id", orderIds)
       .order("sort_order", { ascending: true });
@@ -566,24 +653,55 @@ export async function fetchOrdersIntegrationExport(
     items = (itemRows ?? []) as ItemRow[];
   }
 
-  const productIds = items.map((i) => String(i.product_id));
+  if (view === "lines" || kind === "outlet_placed") {
+    const { data: placedRows, error: placedErr } = await admin
+      .from("outlet_order_placed_items")
+      .select(
+        "order_id, product_id, variant_key, name, qty, uom, line_total, units_per_order_unit, total_units, sort_order",
+      )
+      .in("order_id", orderIds)
+      .order("sort_order", { ascending: true });
+    if (placedErr) throw new Error(placedErr.message);
+    placedItems = (placedRows ?? []) as PlacedItemRow[];
+  }
+
+  const productIds = [
+    ...items.map((i) => String(i.product_id)),
+    ...placedItems.map((i) => String(i.product_id)),
+  ];
   const cache = await buildCatalogCache(admin, productIds, driverIds);
 
-  const signatureUrlByOrder = new Map<string, { driver?: string | null; offloader?: string | null }>();
-  if (kind === "driver_handoff" || kind === "outlet_offloading") {
-    await Promise.all(
-      orders.map(async (order) => {
-        const entry: { driver?: string | null; offloader?: string | null } = {};
-        if (kind === "driver_handoff") {
-          entry.driver = await signedStorageUrl(admin, order.driver_signature_path);
-        }
-        if (kind === "outlet_offloading") {
-          entry.offloader = await signedStorageUrl(admin, order.offloader_signature_path);
-        }
-        signatureUrlByOrder.set(order.id, entry);
-      }),
-    );
-  }
+  const signatureUrlByOrder = new Map<
+    string,
+    {
+      driver?: string | null;
+      offloader?: string | null;
+      employee?: string | null;
+      supervisorDispatch?: string | null;
+    }
+  >();
+  await Promise.all(
+    orders.map(async (order) => {
+      const entry: {
+        driver?: string | null;
+        offloader?: string | null;
+        employee?: string | null;
+        supervisorDispatch?: string | null;
+      } = {};
+      entry.employee = await signedStorageUrl(admin, order.employee_signature_path);
+      if (kind === "driver_handoff" || kind === "outlet_offloading") {
+        entry.driver = await signedStorageUrl(admin, order.driver_signature_path);
+        entry.supervisorDispatch = await signedStorageUrl(
+          admin,
+          order.supervisor_dispatch_signature_path,
+        );
+      }
+      if (kind === "outlet_offloading") {
+        entry.offloader = await signedStorageUrl(admin, order.offloader_signature_path);
+      }
+      signatureUrlByOrder.set(order.id, entry);
+    }),
+  );
 
   const itemsByOrder = new Map<string, ItemRow[]>();
   for (const item of items) {
@@ -592,13 +710,24 @@ export async function fetchOrdersIntegrationExport(
     itemsByOrder.set(item.order_id, list);
   }
 
+  const placedByOrder = new Map<string, PlacedItemRow[]>();
+  for (const item of placedItems) {
+    const list = placedByOrder.get(item.order_id) ?? [];
+    list.push(item);
+    placedByOrder.set(item.order_id, list);
+  }
+
   const records: SupervisorAcceptedOrderExportRecord[] = [];
 
   for (const order of orders) {
     const header = orderHeaderFields(order, cache, detail);
     const sigUrls = signatureUrlByOrder.get(order.id);
+    if (sigUrls?.employee) header.outlet_employee_signature_url = sigUrls.employee;
     if (sigUrls?.driver) header.driver_signature_url = sigUrls.driver;
     if (sigUrls?.offloader) header.offloader_signature_url = sigUrls.offloader;
+    if (sigUrls?.supervisorDispatch) {
+      header.supervisor_dispatch_signature_url = sigUrls.supervisorDispatch;
+    }
 
     if (view === "summary") {
       records.push({
@@ -609,13 +738,41 @@ export async function fetchOrdersIntegrationExport(
       continue;
     }
 
+    const orderPlaced = placedByOrder.get(order.id) ?? [];
+
+    if (kind === "outlet_placed") {
+      for (const placed of orderPlaced) {
+        const row: SupervisorAcceptedOrderExportRecord = {
+          ...header,
+          ...emptyLineFields(),
+        };
+        const pseudoItem: ItemRow = {
+          id: "",
+          order_id: order.id,
+          product_id: placed.product_id,
+          variant_key: placed.variant_key,
+          name: placed.name,
+          qty: placed.qty,
+          uom: placed.uom,
+          line_total: placed.line_total,
+          units_per_order_unit: placed.units_per_order_unit,
+          total_units: placed.total_units,
+          sort_order: placed.sort_order,
+        };
+        applyLineToRecord(row, pseudoItem, cache, detail);
+        records.push(row);
+      }
+      continue;
+    }
+
     const orderItems = itemsByOrder.get(order.id) ?? [];
     for (const item of orderItems) {
       const row: SupervisorAcceptedOrderExportRecord = {
         ...header,
         ...emptyLineFields(),
       };
-      applyLineToRecord(row, item, cache, detail);
+      const placedMatch = findPlacedLineMatch(orderPlaced, item);
+      applyLineToRecord(row, item, cache, detail, placedMatch);
       records.push(row);
     }
   }

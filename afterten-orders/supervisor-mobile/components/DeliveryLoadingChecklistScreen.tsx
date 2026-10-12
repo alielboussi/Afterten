@@ -15,6 +15,7 @@ import {
   fetchDeliveryLoadingDetail,
   fetchOrderRulesContext,
 } from "../lib/delivery-loading";
+import { CHECKLIST_ICON_SIZE, checklistStyles as cs } from "./checklist-styles";
 
 type Props = {
   supabase: SupabaseClient;
@@ -124,43 +125,48 @@ export function DeliveryLoadingChecklistScreen({
       ) : null}
 
       <ScrollView contentContainerStyle={{ paddingBottom: contentPaddingBottom }}>
-        <View style={styles.table}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.cellHeader, styles.colCheck]} />
-            <Text style={[styles.cellHeader, styles.colProduct]}>Product</Text>
-            <Text style={[styles.cellHeader, styles.colQty]}>Qty</Text>
-            <Text style={[styles.cellHeader, styles.colUom]}>UOM</Text>
+        <View style={cs.table}>
+          <View style={cs.tableHeaderRow}>
+            <Text style={[cs.cellHeader, cs.colCheck]} />
+            <Text style={[cs.cellHeader, cs.colProduct]}>Product</Text>
+            <Text style={[cs.cellHeader, cs.colQty]}>Qty</Text>
+            <Text style={[cs.cellHeader, cs.colUom]}>UOM</Text>
           </View>
           {groups.map((group) => (
             <View key={group.groupKey}>
-              {group.rows.map((row) => (
-                <View key={row.rowKey} style={styles.tableBodyRow}>
+              {group.rows.map((row) => {
+                const isChecked = Boolean(checked[row.item_id]);
+                return (
                   <Pressable
-                    style={styles.colCheck}
+                    key={row.rowKey}
+                    style={cs.tableBodyRow}
                     onPress={() => toggleItem(row.item_id)}
+                    disabled={readOnly}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: Boolean(checked[row.item_id]) }}
+                    accessibilityState={{ checked: isChecked }}
                   >
-                    <Ionicons
-                      name={checked[row.item_id] ? "checkbox" : "square-outline"}
-                      size={22}
-                      color={checked[row.item_id] ? "#047857" : "#78716c"}
-                    />
+                    <View style={cs.colCheck}>
+                      <Ionicons
+                        name={isChecked ? "checkbox" : "square-outline"}
+                        size={CHECKLIST_ICON_SIZE}
+                        color={isChecked ? "#047857" : "#78716c"}
+                      />
+                    </View>
+                    <View style={cs.colProduct}>
+                      <Text
+                        style={
+                          row.kind === "main" ? cs.cellProductNameMain : cs.cellProductNameAuto
+                        }
+                        numberOfLines={4}
+                      >
+                        {row.kind === "auto" ? `- ${row.name}` : row.name}
+                      </Text>
+                    </View>
+                    <Text style={[cs.cellBody, cs.colQty]}>{row.qty}</Text>
+                    <Text style={[cs.cellBody, cs.colUom]}>{row.uom}</Text>
                   </Pressable>
-                  <View style={styles.colProduct}>
-                    <Text
-                      style={
-                        row.kind === "main" ? styles.cellProductNameMain : styles.cellProductNameAuto
-                      }
-                      numberOfLines={3}
-                    >
-                      {row.kind === "auto" ? `- ${row.name}` : row.name}
-                    </Text>
-                  </View>
-                  <Text style={[styles.cellBody, styles.colQty]}>{row.qty}</Text>
-                  <Text style={[styles.cellBody, styles.colUom]}>{row.uom}</Text>
-                </View>
-              ))}
+                );
+              })}
             </View>
           ))}
         </View>
@@ -197,34 +203,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 8,
   },
-  table: { borderWidth: 1, borderColor: "#e7e5e4", borderRadius: 10, overflow: "hidden" },
-  tableHeaderRow: {
-    flexDirection: "row",
-    backgroundColor: "#f5f5f4",
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-  },
-  tableBodyRow: {
-    flexDirection: "row",
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#e7e5e4",
-    alignItems: "center",
-  },
-  cellHeader: { fontSize: 11, fontWeight: "700", color: "#57534e" },
-  cellBody: { fontSize: 12, color: "#292524" },
-  colCheck: { width: 32, alignItems: "center" },
-  colProduct: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 12 },
-  colQty: { width: 52, flexShrink: 0, textAlign: "center", paddingHorizontal: 4 },
-  colUom: { width: 58, flexShrink: 0, paddingLeft: 8, textAlign: "center" },
-  cellProductNameMain: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#292524",
-    textDecorationLine: "underline",
-  },
-  cellProductNameAuto: { fontSize: 12, color: "#57534e", paddingLeft: 4 },
   confirmBtn: {
     marginTop: 16,
     backgroundColor: "#1e3a8a",

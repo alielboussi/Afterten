@@ -15,6 +15,7 @@ import {
   type OffloadingDisplayGroup,
 } from "../lib/offloading-display";
 import { confirmOffloadingChecklist, fetchOffloadingOrderDetail } from "../lib/offloading";
+import { CHECKLIST_ICON_SIZE, checklistStyles as cs } from "./checklist-styles";
 
 type Props = {
   supabase: SupabaseClient;
@@ -125,57 +126,73 @@ export function OffloadingChecklistScreen({
       ) : null}
 
       <ScrollView contentContainerStyle={{ paddingBottom: contentPaddingBottom }}>
-        <View style={styles.table}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.cellHeader, styles.colCheck]} />
-            <Text style={[styles.cellHeader, styles.colProduct]}>Product</Text>
-            <Text style={[styles.cellHeader, styles.colQty]}>Qty</Text>
-            <Text style={[styles.cellHeader, styles.colUom]}>UOM</Text>
-            <Text style={[styles.cellHeader, styles.colAmount]}>Amount</Text>
+        <View style={cs.table}>
+          <View style={cs.tableHeaderRow}>
+            <Text style={[cs.cellHeader, cs.colCheck]} />
+            <Text style={[cs.cellHeader, cs.colProduct]}>Product</Text>
+            <Text style={[cs.cellHeader, cs.colQty]}>Qty</Text>
+            <Text style={[cs.cellHeader, cs.colUom]}>UOM</Text>
+            <Text style={[cs.cellHeader, cs.colAmount]}>Amount</Text>
           </View>
           {groups.map((group) => (
             <View key={group.groupKey}>
-              {group.rows.map((row) => (
-                <View key={row.rowKey} style={styles.tableBodyRow}>
-                  {row.item_id ? (
-                    <Pressable
-                      style={styles.colCheck}
-                      onPress={() => toggleItem(row.item_id)}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: Boolean(checked[row.item_id!]) }}
-                    >
-                      <Ionicons
-                        name={checked[row.item_id!] ? "checkbox" : "square-outline"}
-                        size={22}
-                        color={checked[row.item_id!] ? "#047857" : "#78716c"}
-                      />
-                    </Pressable>
-                  ) : (
-                    <View style={styles.colCheck} />
-                  )}
-                  <View style={styles.colProduct}>
-                    <Text
-                      style={
-                        row.kind === "main" || row.kind === "parent"
-                          ? styles.cellProductNameMain
-                          : styles.cellProductNameSub
-                      }
-                      numberOfLines={3}
-                    >
-                      {productLabel(row)}
+              {group.rows.map((row) => {
+                const canToggle = Boolean(row.item_id) && !readOnly;
+                const isChecked = row.item_id ? Boolean(checked[row.item_id]) : false;
+                const rowContent = (
+                  <>
+                    <View style={cs.colCheck}>
+                      {row.item_id ? (
+                        <Ionicons
+                          name={isChecked ? "checkbox" : "square-outline"}
+                          size={CHECKLIST_ICON_SIZE}
+                          color={isChecked ? "#047857" : "#78716c"}
+                        />
+                      ) : null}
+                    </View>
+                    <View style={cs.colProduct}>
+                      <Text
+                        style={
+                          row.kind === "main" || row.kind === "parent"
+                            ? cs.cellProductNameMain
+                            : cs.cellProductNameSub
+                        }
+                        numberOfLines={4}
+                      >
+                        {productLabel(row)}
+                      </Text>
+                    </View>
+                    <Text style={[cs.cellBody, cs.colQty]}>
+                      {row.qty != null ? row.qty : ""}
                     </Text>
-                  </View>
-                  <Text style={[styles.cellBody, styles.colQty]}>
-                    {row.qty != null ? row.qty : ""}
-                  </Text>
-                  <Text style={[styles.cellBody, styles.colUom]}>{row.uom}</Text>
-                  <Text style={[styles.cellBody, styles.colAmount]}>
-                    {row.line_total != null && row.line_total > 0
-                      ? formatKwacha(row.line_total)
-                      : ""}
-                  </Text>
-                </View>
-              ))}
+                    <Text style={[cs.cellBody, cs.colUom]}>{row.uom}</Text>
+                    <Text style={[cs.cellBody, cs.colAmount]}>
+                      {row.line_total != null && row.line_total > 0
+                        ? formatKwacha(row.line_total)
+                        : ""}
+                    </Text>
+                  </>
+                );
+                if (!row.item_id) {
+                  return (
+                    <View key={row.rowKey} style={cs.tableBodyRow}>
+                      {rowContent}
+                    </View>
+                  );
+                }
+                return (
+                  <Pressable
+                    key={row.rowKey}
+                    style={cs.tableBodyRow}
+                    onPress={() => toggleItem(row.item_id)}
+                    disabled={!canToggle}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isChecked }}
+                  >
+                    {rowContent}
+                  </Pressable>
+                );
+              })}
             </View>
           ))}
         </View>
@@ -217,30 +234,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 8,
   },
-  table: { borderWidth: 1, borderColor: "#e7e5e4", borderRadius: 10, overflow: "hidden" },
-  tableHeaderRow: {
-    flexDirection: "row",
-    backgroundColor: "#f5f5f4",
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-  },
-  tableBodyRow: {
-    flexDirection: "row",
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#e7e5e4",
-    alignItems: "center",
-  },
-  cellHeader: { fontSize: 11, fontWeight: "700", color: "#57534e" },
-  cellBody: { fontSize: 12, color: "#292524" },
-  colCheck: { width: 32, alignItems: "center" },
-  colProduct: { flex: 1, flexShrink: 1, minWidth: 0, paddingRight: 8 },
-  colQty: { width: 44, flexShrink: 0, textAlign: "center" },
-  colUom: { width: 50, flexShrink: 0, textAlign: "center" },
-  colAmount: { width: 72, flexShrink: 0, textAlign: "right" },
-  cellProductNameMain: { fontSize: 13, fontWeight: "700", color: "#292524" },
-  cellProductNameSub: { fontSize: 12, color: "#57534e" },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",

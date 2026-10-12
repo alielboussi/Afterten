@@ -17,6 +17,7 @@ import {
   type DeliveryDriver,
 } from "../lib/delivery-loading";
 import { uploadDriverSignature } from "../lib/driver-signature-upload";
+import { uploadSupervisorDispatchSignature } from "../lib/supervisor-dispatch-signature-upload";
 
 type Props = {
   supabase: SupabaseClient;
@@ -35,7 +36,8 @@ export function DeliveryDriverHandoffScreen({
   onComplete,
   contentPaddingBottom,
 }: Props) {
-  const signatureRef = useRef<SignaturePadHandle>(null);
+  const driverSignatureRef = useRef<SignaturePadHandle>(null);
+  const supervisorSignatureRef = useRef<SignaturePadHandle>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,8 @@ export function DeliveryDriverHandoffScreen({
   const [drivers, setDrivers] = useState<DeliveryDriver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<DeliveryDriver | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [signatureValid, setSignatureValid] = useState(false);
+  const [driverSignatureValid, setDriverSignatureValid] = useState(false);
+  const [supervisorSignatureValid, setSupervisorSignatureValid] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,19 +84,39 @@ export function DeliveryDriverHandoffScreen({
       setError("Select a driver.");
       return;
     }
-    if (!signatureRef.current?.isValid()) {
-      setError(signatureRef.current?.validationMessage() ?? "Please sign in the box.");
+    if (!supervisorSignatureRef.current?.isValid()) {
+      setError(
+        supervisorSignatureRef.current?.validationMessage() ?? "Supervisor signature required.",
+      );
+      return;
+    }
+    if (!driverSignatureRef.current?.isValid()) {
+      setError(
+        driverSignatureRef.current?.validationMessage() ?? "Driver signature required.",
+      );
       return;
     }
     setBusy(true);
     setError(null);
-    const pngUri = await signatureRef.current.capturePngUri();
-    if (!pngUri) {
+    const supervisorPngUri = await supervisorSignatureRef.current.capturePngUri();
+    const driverPngUri = await driverSignatureRef.current.capturePngUri();
+    if (!supervisorPngUri || !driverPngUri) {
       setBusy(false);
       setError("Could not read signature.");
       return;
     }
-    const uploaded = await uploadDriverSignature(supabase, outletId, orderId, pngUri, {
+    const supervisorUploaded = await uploadSupervisorDispatchSignature(
+      supabase,
+      outletId,
+      orderId,
+      supervisorPngUri,
+    );
+    if ("error" in supervisorUploaded) {
+      setBusy(false);
+      setError(supervisorUploaded.error);
+      return;
+    }
+    const uploaded = await uploadDriverSignature(supabase, outletId, orderId, driverPngUri, {
       outletName,
       driverName: selectedDriver.name,
       supervisorLabel: supervisorLabel.trim() || "Supervisor",
@@ -109,6 +132,7 @@ export function DeliveryDriverHandoffScreen({
       orderId,
       selectedDriver.id,
       uploaded.dbPath,
+      supervisorUploaded.dbPath,
     );
     if (handoff.error) {
       setBusy(false);
@@ -145,8 +169,19 @@ export function DeliveryDriverHandoffScreen({
           </Text>
         </Pressable>
 
+        <Text style={styles.fieldLabel}>Supervisor signature</Text>
+        <SignaturePad
+          ref={supervisorSignatureRef}
+          disabled={busy}
+          onValidityChange={setSupervisorSignatureValid}
+        />
+
         <Text style={styles.fieldLabel}>Driver signature</Text>
-        <SignaturePad ref={signatureRef} disabled={busy} onValidityChange={setSignatureValid} />
+        <SignaturePad
+          ref={driverSignatureRef}
+          disabled={busy}
+          onValidityChange={setDriverSignatureValid}
+        />
 
         {error ? (
           <Text style={styles.error} accessibilityRole="alert">
@@ -157,9 +192,12 @@ export function DeliveryDriverHandoffScreen({
         <Pressable
           style={[
             styles.saveBtn,
-            (busy || !selectedDriver || !signatureValid) && styles.saveBtnDisabled,
+            (busy || !selectedDriver || !driverSignatureValid || !supervisorSignatureValid) &&
+              styles.saveBtnDisabled,
           ]}
-          disabled={busy || !selectedDriver || !signatureValid}
+          disabled={
+            busy || !selectedDriver || !driverSignatureValid || !supervisorSignatureValid
+          }
           onPress={() => void onDispatch()}
         >
           {busy ? (
