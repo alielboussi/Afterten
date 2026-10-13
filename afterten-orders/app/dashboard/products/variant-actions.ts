@@ -121,12 +121,12 @@ export async function saveProductVariant(parentProductId: string, input: Product
     return { ok: false as const, error: "Min qty cannot exceed max qty." };
   }
 
-  const returnUnitsRaw = input.returnUnitsPerOrder.trim();
+  const returnUnitsRaw = String(input.returnUnitsPerOrder ?? "").trim();
   let returnUnitsPerOrder =
     returnUnitsRaw && Number.isFinite(Number(returnUnitsRaw)) && Number(returnUnitsRaw) > 0
       ? Number(returnUnitsRaw)
       : null;
-  const returnUnitsUomRaw = input.returnUnitsPerOrderUom.trim();
+  const returnUnitsUomRaw = String(input.returnUnitsPerOrderUom ?? "").trim();
   let returnUnitsPerOrderUom = returnUnitsUomRaw || null;
 
   const admin = createAdminClient();

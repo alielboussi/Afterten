@@ -46,6 +46,16 @@ function parseOptionalDays(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function normalizeReturnCatalogFields(input: ProductInput): {
+  returnUnitsPerOrder: number;
+  returnUnitsPerOrderUom: string;
+} {
+  const qty = Number(input.returnUnitsPerOrder);
+  const returnUnitsPerOrder = Number.isFinite(qty) && qty > 0 ? qty : 1;
+  const returnUnitsPerOrderUom = String(input.returnUnitsPerOrderUom ?? "").trim() || "pcs";
+  return { returnUnitsPerOrder, returnUnitsPerOrderUom };
+}
+
 /** Next product catalog sort_order only (not variant sorts). Max + 1, or 0 when catalog empty. */
 export async function getNextProductSortOrder() {
   const gate = await assertCallerIsPortalAdmin();
@@ -105,6 +115,7 @@ export async function reorderCatalogProducts(orderedDbIds: string[]) {
 }
 
 export async function createProduct(input: ProductInput) {
+  try {
   const gate = await assertCallerIsPortalAdmin();
   if (!gate.ok) return gate;
 
@@ -130,9 +141,8 @@ export async function createProduct(input: ProductInput) {
     return { ok: false as const, error: "Set max order qty when using a rolling day limit." };
   }
   const unitsPerOrderUnit = input.unitsPerOrderUnit > 0 ? input.unitsPerOrderUnit : 1;
-  const unitsPerOrderUom = input.unitsPerOrderUom.trim() || "pcs";
-  const returnUnitsPerOrder = input.returnUnitsPerOrder > 0 ? input.returnUnitsPerOrder : 1;
-  const returnUnitsPerOrderUom = input.returnUnitsPerOrderUom.trim() || "pcs";
+  const unitsPerOrderUom = String(input.unitsPerOrderUom ?? "").trim() || "pcs";
+  const { returnUnitsPerOrder, returnUnitsPerOrderUom } = normalizeReturnCatalogFields(input);
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -177,9 +187,14 @@ export async function createProduct(input: ProductInput) {
     metadata: { productId, dbId: data.id },
   });
   return { ok: true as const, id: data.id as string, productId };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Could not create product.";
+    return { ok: false as const, error: msg };
+  }
 }
 
 export async function updateProduct(id: string, input: ProductInput) {
+  try {
   const gate = await assertCallerIsPortalAdmin();
   if (!gate.ok) return gate;
 
@@ -206,9 +221,8 @@ export async function updateProduct(id: string, input: ProductInput) {
     return { ok: false as const, error: "Set max order qty when using a rolling day limit." };
   }
   const unitsPerOrderUnit = input.unitsPerOrderUnit > 0 ? input.unitsPerOrderUnit : 1;
-  const unitsPerOrderUom = input.unitsPerOrderUom.trim() || "pcs";
-  const returnUnitsPerOrder = input.returnUnitsPerOrder > 0 ? input.returnUnitsPerOrder : 1;
-  const returnUnitsPerOrderUom = input.returnUnitsPerOrderUom.trim() || "pcs";
+  const unitsPerOrderUom = String(input.unitsPerOrderUom ?? "").trim() || "pcs";
+  const { returnUnitsPerOrder, returnUnitsPerOrderUom } = normalizeReturnCatalogFields(input);
 
   const admin = createAdminClient();
   const { error } = await admin
@@ -242,7 +256,7 @@ export async function updateProduct(id: string, input: ProductInput) {
   revalidateTag(PRODUCTS_LIST_TAG);
   revalidateTag(`product-${id}`);
 
-  await admin
+  const { error: variantErr } = await admin
     .from("product_variants")
     .update({
       min_order_qty: minOrderQty,
@@ -255,6 +269,7 @@ export async function updateProduct(id: string, input: ProductInput) {
       updated_at: new Date().toISOString(),
     })
     .eq("product_id", productId);
+  if (variantErr) return { ok: false as const, error: variantErr.message };
 
   await logPortalAudit({
     pagePath: `/dashboard/products/${id}/edit`,
@@ -263,6 +278,10 @@ export async function updateProduct(id: string, input: ProductInput) {
     metadata: { productId, dbId: id },
   });
   return { ok: true as const };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Could not update product.";
+    return { ok: false as const, error: msg };
+  }
 }
 
 export async function setProductLiveQtyGate(id: string, enabled: boolean) {

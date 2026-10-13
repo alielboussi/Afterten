@@ -31,6 +31,8 @@ export default async function ProductsPage() {
               ? " Run migration 20261004110000_units_per_order_uom.sql on Supabase."
               : loadError.includes("units_per_order_unit")
                 ? " Run migration 20261004100000_units_per_order_unit.sql on Supabase."
+              : loadError.includes("return_units_per_order")
+                ? " Run migration 20261013100000_return_catalog_uom_and_flow.sql on Supabase."
               : loadError.includes("products") || loadError.includes("relation")
               ? " Run migration 20261001180000_products_catalog.sql on Supabase."
               : null}
