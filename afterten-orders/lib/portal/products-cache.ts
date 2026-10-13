@@ -23,12 +23,14 @@ function mapProduct(row: Record<string, unknown>): ProductRow {
     maxOrderQtyDays: row.max_order_qty_days != null ? Number(row.max_order_qty_days) : null,
     unitsPerOrderUnit: Number(row.units_per_order_unit ?? 1),
     unitsPerOrderUom: String(row.units_per_order_uom ?? "pcs").trim() || "pcs",
+    returnUnitsPerOrder: Number(row.return_units_per_order ?? 1),
+    returnUnitsPerOrderUom: String(row.return_units_per_order_uom ?? "pcs").trim() || "pcs",
     hasVariants: Boolean(row.has_variants),
   };
 }
 
 const productSelect =
-  "id, product_id, name, uom, unit_cost, image_url, active, live_qty_gate_enabled, sort_order, qty_step, min_order_qty, max_order_qty, max_order_qty_days, units_per_order_unit, units_per_order_uom, has_variants";
+  "id, product_id, name, uom, unit_cost, image_url, active, live_qty_gate_enabled, sort_order, qty_step, min_order_qty, max_order_qty, max_order_qty_days, units_per_order_unit, units_per_order_uom, return_units_per_order, return_units_per_order_uom, has_variants";
 
 async function fetchProductsList(): Promise<ProductRow[]> {
   const admin = createAdminClient();

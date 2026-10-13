@@ -41,3 +41,41 @@ export function formatOrderUnitBreakdown(
 export function formatQtyNumber(n: number): string {
   return Number.isInteger(n) ? String(n) : String(n);
 }
+
+export function totalReturnUnits(qty: number, returnUnitsPerOrder: number): number {
+  const per = returnUnitsPerOrder > 0 ? returnUnitsPerOrder : 1;
+  return qty * per;
+}
+
+/** e.g. "3 Trays = 75 Bread" (return qty × return units per order) */
+export function formatReturnUnitBreakdown(
+  qty: number,
+  lineUom: string,
+  returnUnitsPerOrder: number,
+  returnUnitsPerOrderUom: string,
+): string | null {
+  if (qty <= 0) return null;
+  const per = returnUnitsPerOrder > 0 ? returnUnitsPerOrder : 1;
+  const returnUom = returnUnitsPerOrderUom.trim() || "pcs";
+  const orderUom = lineUom.trim() || "unit";
+  const total = totalReturnUnits(qty, per);
+  const qtyLabel = formatQtyNumber(qty);
+  const totalLabel = formatQtyNumber(total);
+  if (per <= 1 && orderUom.toLowerCase() === returnUom.toLowerCase()) {
+    return `${totalLabel} ${returnUom}`;
+  }
+  return `${qtyLabel} ${orderUom} = ${totalLabel} ${returnUom}`;
+}
+
+export function formatReturnPerOrderUnitHint(
+  returnUnitsPerOrder: number,
+  lineUom: string,
+  returnUnitsPerOrderUom: string,
+): string | null {
+  const per = returnUnitsPerOrder > 0 ? returnUnitsPerOrder : 1;
+  if (per <= 1) return null;
+  const returnUom = returnUnitsPerOrderUom.trim() || "pcs";
+  const orderUom = lineUom.trim() || "unit";
+  const perLabel = formatQtyNumber(per);
+  return `1 ${orderUom} = ${perLabel} ${returnUom}`;
+}

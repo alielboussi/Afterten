@@ -3,6 +3,7 @@ import "server-only";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { batchSignedStorageUrls } from "@/lib/integrations/stored-pdf-path";
 import { createAdminClient } from "@/lib/supabase/admin-server";
 
 export type IntegrationExportView = "lines" | "summary";
@@ -212,21 +213,6 @@ function supervisorRevised(order: OrderRow): boolean {
   const accepted = new Date(order.supervisor_accepted_at).getTime();
   const updated = new Date(order.updated_at).getTime();
   return updated - accepted > 2000;
-}
-
-async function signedStorageUrl(
-  admin: SupabaseClient,
-  dbPath: string | null | undefined,
-): Promise<string | null> {
-  if (!dbPath?.trim()) return null;
-  const trimmed = dbPath.trim();
-  const slash = trimmed.indexOf("/");
-  if (slash <= 0) return null;
-  const bucket = trimmed.slice(0, slash);
-  const key = trimmed.slice(slash + 1);
-  const { data, error } = await admin.storage.from(bucket).createSignedUrl(key, 3600);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
 }
 
 const ORDER_SELECT_FIELDS =
@@ -671,6 +657,21 @@ export async function fetchOrdersIntegrationExport(
   ];
   const cache = await buildCatalogCache(admin, productIds, driverIds);
 
+  const signaturePaths: string[] = [];
+  for (const order of orders) {
+    if (order.employee_signature_path) signaturePaths.push(order.employee_signature_path);
+    if (kind === "driver_handoff" || kind === "outlet_offloading") {
+      if (order.driver_signature_path) signaturePaths.push(order.driver_signature_path);
+      if (order.supervisor_dispatch_signature_path) {
+        signaturePaths.push(order.supervisor_dispatch_signature_path);
+      }
+    }
+    if (kind === "outlet_offloading" && order.offloader_signature_path) {
+      signaturePaths.push(order.offloader_signature_path);
+    }
+  }
+  const signedUrlByPath = await batchSignedStorageUrls(admin, signaturePaths);
+
   const signatureUrlByOrder = new Map<
     string,
     {
@@ -680,28 +681,28 @@ export async function fetchOrdersIntegrationExport(
       supervisorDispatch?: string | null;
     }
   >();
-  await Promise.all(
-    orders.map(async (order) => {
-      const entry: {
-        driver?: string | null;
-        offloader?: string | null;
-        employee?: string | null;
-        supervisorDispatch?: string | null;
-      } = {};
-      entry.employee = await signedStorageUrl(admin, order.employee_signature_path);
-      if (kind === "driver_handoff" || kind === "outlet_offloading") {
-        entry.driver = await signedStorageUrl(admin, order.driver_signature_path);
-        entry.supervisorDispatch = await signedStorageUrl(
-          admin,
-          order.supervisor_dispatch_signature_path,
-        );
-      }
-      if (kind === "outlet_offloading") {
-        entry.offloader = await signedStorageUrl(admin, order.offloader_signature_path);
-      }
-      signatureUrlByOrder.set(order.id, entry);
-    }),
-  );
+  for (const order of orders) {
+    const lookup = (path: string | null | undefined) => {
+      const key = path?.trim();
+      return key ? (signedUrlByPath.get(key) ?? null) : null;
+    };
+    const entry: {
+      driver?: string | null;
+      offloader?: string | null;
+      employee?: string | null;
+      supervisorDispatch?: string | null;
+    } = {
+      employee: lookup(order.employee_signature_path),
+    };
+    if (kind === "driver_handoff" || kind === "outlet_offloading") {
+      entry.driver = lookup(order.driver_signature_path);
+      entry.supervisorDispatch = lookup(order.supervisor_dispatch_signature_path);
+    }
+    if (kind === "outlet_offloading") {
+      entry.offloader = lookup(order.offloader_signature_path);
+    }
+    signatureUrlByOrder.set(order.id, entry);
+  }
 
   const itemsByOrder = new Map<string, ItemRow[]>();
   for (const item of items) {

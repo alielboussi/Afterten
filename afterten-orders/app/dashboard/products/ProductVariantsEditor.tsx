@@ -27,6 +27,8 @@ type VariantRow = {
   max_order_qty: number | null;
   units_per_order_unit: number;
   units_per_order_uom: string;
+  return_units_per_order: number | null;
+  return_units_per_order_uom: string | null;
   active: boolean;
   live_qty_gate_enabled: boolean;
 };
@@ -55,6 +57,8 @@ function emptyDraft(sortOrder = 1): ProductVariantInput {
     maxOrderQty: "",
     unitsPerOrderUnit: 1,
     unitsPerOrderUom: "pcs",
+    returnUnitsPerOrder: "",
+    returnUnitsPerOrderUom: "",
     active: true,
     liveQtyGateEnabled: false,
   };
@@ -154,6 +158,9 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
       maxOrderQty: row.max_order_qty != null ? String(row.max_order_qty) : "",
       unitsPerOrderUnit: Number(row.units_per_order_unit ?? 1),
       unitsPerOrderUom: String(row.units_per_order_uom ?? "pcs").trim() || "pcs",
+      returnUnitsPerOrder:
+        row.return_units_per_order != null ? String(row.return_units_per_order) : "",
+      returnUnitsPerOrderUom: row.return_units_per_order_uom?.trim() ?? "",
       active: row.active,
       liveQtyGateEnabled: row.live_qty_gate_enabled,
     });
@@ -335,8 +342,9 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
               </label>
             </div>
             <p className={styles.formHint} style={{ marginTop: -4, marginBottom: 12 }}>
-              Units per order and Unit UOM are set on the product form above and apply to every variant in
-              the outlet app.
+              Units per order, return units per order, and their UOMs are set on the product form above and
+              apply to every variant when you save the product. Override return fields here only when a
+              variant differs.
             </p>
             <div className={styles.twoCol}>
               <label className={styles.label}>
@@ -366,6 +374,29 @@ export function ProductVariantsEditor({ productDbId, parentProductId, hasVariant
                   step="any"
                   value={draft.qtyStep}
                   onChange={(e) => setDraft((d) => ({ ...d, qtyStep: Number(e.target.value) || 1 }))}
+                />
+              </label>
+            </div>
+            <div className={styles.twoCol}>
+              <label className={styles.label}>
+                Return units per order (optional override)
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={0.001}
+                  step="any"
+                  value={draft.returnUnitsPerOrder}
+                  onChange={(e) => setDraft((d) => ({ ...d, returnUnitsPerOrder: e.target.value }))}
+                  placeholder="Uses product default"
+                />
+              </label>
+              <label className={styles.label}>
+                Return unit UOM (optional override)
+                <input
+                  className={styles.input}
+                  value={draft.returnUnitsPerOrderUom}
+                  onChange={(e) => setDraft((d) => ({ ...d, returnUnitsPerOrderUom: e.target.value }))}
+                  placeholder="Uses product default"
                 />
               </label>
             </div>

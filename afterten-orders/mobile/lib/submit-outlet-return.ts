@@ -42,6 +42,8 @@ export async function submitOutletReturn(
   supabase: SupabaseClient,
   input: {
     returnId: string;
+    catalogLineId: string;
+    returnQty: number;
     outletEmployeeId: string;
     employeePasscode: string;
     photoDbPath: string;
@@ -64,6 +66,8 @@ export async function submitOutletReturn(
     p_employee_passcode: passcode,
     p_employee_signature_path: input.signatureDbPath,
     p_photo_path: input.photoDbPath,
+    p_catalog_line_id: input.catalogLineId.trim(),
+    p_return_qty: input.returnQty,
   });
 
   if (error) {

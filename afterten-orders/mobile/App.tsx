@@ -55,6 +55,7 @@ import {
 import { submitOutletOrder } from "./lib/submit-outlet-order";
 import { flushOfflineCompleteQueue } from "./lib/offline-complete-queue";
 import { registerOutletPushNotifications } from "./lib/outlet-push";
+import { useOutletPushNavigation } from "./lib/push-navigation";
 import { ReturnsFlowScreen } from "./components/ReturnsFlowScreen";
 import { previewReturnNumber } from "./lib/outlet-returns-list";
 import { uploadReturnPhoto, uploadReturnSignature } from "./lib/return-upload";
@@ -155,6 +156,39 @@ function AppShell() {
     setSaveToast(`Order ${result.orderNumber} saved.`);
     void loadProducts({ force: true });
   }
+
+  const openViewOrdersFromPush = useCallback(() => {
+    setOrderFlowActive(false);
+    setOrderSummaryActive(false);
+    setOffloadingActive(false);
+    setReturnsActive(false);
+    setCompletedOrdersActive(false);
+    setViewOrderDetailId(null);
+    setViewOrdersActive(true);
+  }, []);
+
+  const openOffloadingFromPush = useCallback(() => {
+    setOrderFlowActive(false);
+    setViewOrdersActive(false);
+    setReturnsActive(false);
+    setOffloadingChecklistOrderId(null);
+    setOffloadingSignOrderId(null);
+    setOffloadingActive(true);
+    setOffloadingRefreshToken((t) => t + 1);
+  }, []);
+
+  const openReturnsFromPush = useCallback(() => {
+    setOrderFlowActive(false);
+    setViewOrdersActive(false);
+    setOffloadingActive(false);
+    setReturnsActive(true);
+  }, []);
+
+  useOutletPushNavigation({
+    openViewOrders: openViewOrdersFromPush,
+    openOffloading: openOffloadingFromPush,
+    openReturns: openReturnsFromPush,
+  });
 
   const loadProducts = useCallback(async (options?: { force?: boolean }) => {
     if (!supabase) return;
@@ -413,6 +447,8 @@ function AppShell() {
               }
               const result = await submitOutletReturn(supabase, {
                 returnId: input.returnId,
+                catalogLineId: input.catalogLineId,
+                returnQty: input.returnQty,
                 outletEmployeeId: input.outletEmployeeId,
                 employeePasscode: input.employeePasscode,
                 photoDbPath: photoUp.dbPath,

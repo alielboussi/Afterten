@@ -24,6 +24,8 @@ type Initial = {
   maxOrderQtyDays: number | null;
   unitsPerOrderUnit: number;
   unitsPerOrderUom: string;
+  returnUnitsPerOrder: number;
+  returnUnitsPerOrderUom: string;
   hasVariants: boolean;
 };
 
@@ -63,6 +65,15 @@ export function ProductForm(props: Props) {
   const [unitsPerOrderUom, setUnitsPerOrderUom] = useState(() => {
     if (!isEdit) return "pcs";
     const raw = props.initial.unitsPerOrderUom;
+    const t = (raw ?? "pcs").trim();
+    return t || "pcs";
+  });
+  const [returnUnitsPerOrder, setReturnUnitsPerOrder] = useState(
+    isEdit ? String(props.initial.returnUnitsPerOrder) : "1",
+  );
+  const [returnUnitsPerOrderUom, setReturnUnitsPerOrderUom] = useState(() => {
+    if (!isEdit) return "pcs";
+    const raw = props.initial.returnUnitsPerOrderUom;
     const t = (raw ?? "pcs").trim();
     return t || "pcs";
   });
@@ -136,6 +147,8 @@ export function ProductForm(props: Props) {
       maxOrderQtyDays,
       unitsPerOrderUnit: Number(unitsPerOrderUnit) || 1,
       unitsPerOrderUom,
+      returnUnitsPerOrder: Number(returnUnitsPerOrder) || 1,
+      returnUnitsPerOrderUom,
       hasVariants,
     };
 
@@ -338,6 +351,35 @@ export function ProductForm(props: Props) {
       </div>
       <span className={styles.formHint} style={{ textAlign: "left", marginTop: -8, marginBottom: 12 }}>
         Order qty stays in UOM above (e.g. trays). Outlet sees total = qty × units per order (e.g. 3 trays × 25 = 75 pcs).
+      </span>
+
+      <div className={styles.twoCol}>
+        <label className={styles.label}>
+          Return units per order
+          <input
+            className={styles.input}
+            type="number"
+            min={0.001}
+            step="any"
+            value={returnUnitsPerOrder}
+            onChange={(e) => setReturnUnitsPerOrder(e.target.value)}
+            title="Multiplier for outlet returns (per product UOM line)"
+          />
+        </label>
+        <label className={styles.label}>
+          Return unit UOM
+          <input
+            className={styles.input}
+            value={returnUnitsPerOrderUom}
+            onChange={(e) => setReturnUnitsPerOrderUom(e.target.value)}
+            placeholder="pcs, Bread…"
+            title="Label for return qty × return units per order"
+          />
+        </label>
+      </div>
+      <span className={styles.formHint} style={{ textAlign: "left", marginTop: -8, marginBottom: 12 }}>
+        Used only on outlet returns (can differ from order UOM). When this product has variants, saving the
+        product copies these values to every variant; variants may override in the variant editor.
       </span>
 
       <div className={styles.label}>

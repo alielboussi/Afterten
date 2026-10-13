@@ -101,6 +101,9 @@ export function SupervisorReturnDetailScreen({
       <Text style={styles.title}>Return #{detail.returnNumber}</Text>
       <Text style={styles.meta}>{detail.outletName}</Text>
       <Text style={styles.meta}>{detail.employeeName}</Text>
+      {detail.productSummary ? (
+        <Text style={styles.meta}>{detail.productSummary}</Text>
+      ) : null}
       <Text style={styles.status}>
         {detail.status === "accepted"
           ? "Accepted"

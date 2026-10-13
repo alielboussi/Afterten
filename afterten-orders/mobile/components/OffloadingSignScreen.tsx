@@ -193,13 +193,9 @@ export function OffloadingSignScreen({
       setError(done.error);
       return;
     }
-    const pdf = await downloadCompletedOrderPdf(supabase, orderId);
     setBusy(false);
-    onComplete(
-      pdf.ok
-        ? `Order completed. Full PDF: ${pdf.fileName}`
-        : `Order completed. PDF: ${pdf.error}`,
-    );
+    onComplete("Order completed.");
+    void downloadCompletedOrderPdf(supabase, orderId);
   }
 
   if (loading) {

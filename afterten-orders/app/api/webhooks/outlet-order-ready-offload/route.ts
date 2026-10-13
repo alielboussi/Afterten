@@ -47,7 +47,12 @@ export async function POST(req: Request) {
   await sendExpoPushBatch(tokens, {
     title: "Ready to offload",
     body: `${order.order_number} has arrived — open Offloading to receive it.`,
-    data: { orderId: order.id, orderNumber: order.order_number, screen: "offloading" },
+    data: {
+      event: "outlet_order_loaded",
+      orderId: order.id,
+      orderNumber: order.order_number,
+      screen: "offloading",
+    },
   });
 
   return NextResponse.json({ ok: true, pushTokens: tokens.length });

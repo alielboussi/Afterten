@@ -24,6 +24,7 @@ import {
 import { signInWithGoogle } from "./lib/google-auth";
 import { subscribeToNewOutletOrders } from "./lib/order-realtime";
 import { registerSupervisorPushNotifications } from "./lib/supervisor-push";
+import { useSupervisorPushNavigation } from "./lib/push-navigation";
 import { DeliveryLoadingChecklistScreen } from "./components/DeliveryLoadingChecklistScreen";
 import { DeliveryDriverHandoffScreen } from "./components/DeliveryDriverHandoffScreen";
 import { OrdersScreen } from "./components/OrdersScreen";
@@ -64,6 +65,46 @@ function AppShell({ onOrderAlert }: { onOrderAlert: (message: string) => void })
   const [completedOrderDetailId, setCompletedOrderDetailId] = useState<string | null>(null);
   const [selectedReturnId, setSelectedReturnId] = useState<string | null>(null);
   const [returnsRefreshToken, setReturnsRefreshToken] = useState(0);
+
+  const openOrdersFromPush = useCallback((orderId?: string) => {
+    if (orderId) {
+      setSelectedOrderId(orderId);
+      setScreen("orderDetail");
+    } else {
+      setSelectedOrderId(null);
+      setScreen("orders");
+    }
+    setOrdersRefreshToken((t) => t + 1);
+  }, []);
+
+  const openDeliveryLoadingFromPush = useCallback((orderId?: string) => {
+    setDeliveryLoadingOrderId(orderId ?? null);
+    setScreen("deliveryLoading");
+    setDeliveryRefreshToken((t) => t + 1);
+  }, []);
+
+  const openCompletedOrdersFromPush = useCallback((orderId?: string) => {
+    setCompletedOrderDetailId(orderId ?? null);
+    setScreen("completedOrders");
+  }, []);
+
+  const openReturnsFromPush = useCallback((returnId?: string) => {
+    if (returnId) {
+      setSelectedReturnId(returnId);
+      setScreen("returnDetail");
+    } else {
+      setSelectedReturnId(null);
+      setScreen("returns");
+    }
+    setReturnsRefreshToken((t) => t + 1);
+  }, []);
+
+  useSupervisorPushNavigation({
+    openOrders: openOrdersFromPush,
+    openDeliveryLoading: openDeliveryLoadingFromPush,
+    openCompletedOrders: openCompletedOrdersFromPush,
+    openReturns: openReturnsFromPush,
+  });
 
   const finishOrderAcceptance = useCallback((acceptedOrderId: string) => {
     void acceptedOrderId;

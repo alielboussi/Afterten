@@ -25,6 +25,8 @@ export type ProductVariantInput = {
   maxOrderQty: string;
   unitsPerOrderUnit: number;
   unitsPerOrderUom: string;
+  returnUnitsPerOrder: string;
+  returnUnitsPerOrderUom: string;
   active: boolean;
   liveQtyGateEnabled: boolean;
 };
@@ -47,7 +49,7 @@ export async function listProductVariants(parentProductId: string) {
   const { data, error } = await admin
     .from("product_variants")
     .select(
-      "id, variant_id, name, uom, unit_cost, image_url, sort_order, qty_step, min_order_qty, max_order_qty, units_per_order_unit, units_per_order_uom, active, live_qty_gate_enabled",
+      "id, variant_id, name, uom, unit_cost, image_url, sort_order, qty_step, min_order_qty, max_order_qty, units_per_order_unit, units_per_order_uom, return_units_per_order, return_units_per_order_uom, active, live_qty_gate_enabled",
     )
     .eq("product_id", pid)
     .order("sort_order")
@@ -119,7 +121,31 @@ export async function saveProductVariant(parentProductId: string, input: Product
     return { ok: false as const, error: "Min qty cannot exceed max qty." };
   }
 
+  const returnUnitsRaw = input.returnUnitsPerOrder.trim();
+  let returnUnitsPerOrder =
+    returnUnitsRaw && Number.isFinite(Number(returnUnitsRaw)) && Number(returnUnitsRaw) > 0
+      ? Number(returnUnitsRaw)
+      : null;
+  const returnUnitsUomRaw = input.returnUnitsPerOrderUom.trim();
+  let returnUnitsPerOrderUom = returnUnitsUomRaw || null;
+
   const admin = createAdminClient();
+
+  if (returnUnitsPerOrder === null || returnUnitsPerOrderUom === null) {
+    const { data: parentProduct } = await admin
+      .from("products")
+      .select("return_units_per_order, return_units_per_order_uom")
+      .eq("product_id", productId)
+      .maybeSingle();
+    if (returnUnitsPerOrder === null) {
+      const parentQty = Number(parentProduct?.return_units_per_order ?? 0);
+      if (parentQty > 0) returnUnitsPerOrder = parentQty;
+    }
+    if (returnUnitsPerOrderUom === null) {
+      const parentUom = String(parentProduct?.return_units_per_order_uom ?? "").trim();
+      if (parentUom) returnUnitsPerOrderUom = parentUom;
+    }
+  }
   const row = {
     product_id: productId,
     variant_id: variantId,
@@ -131,6 +157,8 @@ export async function saveProductVariant(parentProductId: string, input: Product
     qty_step: qtyStep,
     min_order_qty: minOrderQty,
     max_order_qty: maxOrderQty,
+    return_units_per_order: returnUnitsPerOrder,
+    return_units_per_order_uom: returnUnitsPerOrderUom,
     active: input.active,
     live_qty_gate_enabled: input.liveQtyGateEnabled,
     updated_at: new Date().toISOString(),

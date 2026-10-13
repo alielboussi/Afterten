@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadPortalOrderLineRows } from "@/lib/portal/order-lines-display";
 import { resolveSupervisorDisplayAlias } from "@/lib/integrations/resolve-supervisor-alias";
 import { resolveDriverDisplayName } from "@/lib/integrations/resolve-driver-name";
+import { hitToResult, storedPdfHit } from "@/lib/integrations/stored-pdf-path";
 
 const LOGO_PATH = resolveLogoPath();
 
@@ -744,6 +745,12 @@ export async function generateAndStoreApprovedOrderPdf(
     return { ok: false, error: "Order is not supervisor-approved yet." };
   }
 
+  const existingApproved = storedPdfHit(
+    order.approved_pdf_path as string | null,
+    "approved-orders/",
+  );
+  if (existingApproved) return hitToResult(existingApproved);
+
   const lines = await loadOrderPdfLines(admin, orderId);
 
   const placedAtLabel = new Intl.DateTimeFormat("en-GB", {
@@ -832,17 +839,17 @@ export async function generateAndStoreDriverHandoffPdf(
     return { ok: false, error: "Order is not loaded yet." };
   }
 
-  let driver: { name: string } | null = null;
-  if (order.driver_id) {
-    const { data } = await admin
-      .from("delivery_drivers")
-      .select("name")
-      .eq("id", order.driver_id as string)
-      .maybeSingle();
-    driver = data;
-  }
+  const existingHandoff = storedPdfHit(order.handoff_pdf_path as string | null, "driver-handoffs/");
+  if (existingHandoff) return hitToResult(existingHandoff);
 
-  const lines = await loadOrderPdfLines(admin, orderId);
+  const driverId = order.driver_id as string | null;
+  const [driverRes, lines] = await Promise.all([
+    driverId
+      ? admin.from("delivery_drivers").select("name").eq("id", driverId).maybeSingle()
+      : Promise.resolve({ data: null as { name: string } | null }),
+    loadOrderPdfLines(admin, orderId),
+  ]);
+  const driver = driverRes.data;
   const loadedLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Lusaka",
     weekday: "short",
@@ -945,25 +952,27 @@ export async function generateAndStoreCompletedOrderPdf(
     return { ok: false, error: "Order is not completed yet." };
   }
 
-  let driver: { name: string } | null = null;
-  if (order.driver_id) {
-    const { data } = await admin
-      .from("delivery_drivers")
-      .select("name")
-      .eq("id", order.driver_id as string)
-      .maybeSingle();
-    driver = data;
-  }
+  const existingCompleted = storedPdfHit(
+    order.completed_pdf_path as string | null,
+    "completed-orders/",
+  );
+  if (existingCompleted) return hitToResult(existingCompleted);
 
-  const lines = await loadOrderPdfLines(admin, orderId);
+  const driverId = order.driver_id as string | null;
   const grandTotal = Number(order.grand_total ?? 0);
-  const supervisorAlias = await resolveSupervisorDisplayAlias(admin, order);
 
-  const [employeeSignaturePng, driverSignaturePng, offloaderSignaturePng] = await Promise.all([
-    loadSignaturePng(admin, order.employee_signature_path as string | null),
-    loadDriverSignaturePng(admin, order.driver_signature_path as string | null),
-    loadSignaturePng(admin, order.offloader_signature_path as string | null),
-  ]);
+  const [lines, driverRes, supervisorAlias, employeeSignaturePng, driverSignaturePng, offloaderSignaturePng] =
+    await Promise.all([
+      loadOrderPdfLines(admin, orderId),
+      driverId
+        ? admin.from("delivery_drivers").select("name").eq("id", driverId).maybeSingle()
+        : Promise.resolve({ data: null as { name: string } | null }),
+      resolveSupervisorDisplayAlias(admin, order),
+      loadSignaturePng(admin, order.employee_signature_path as string | null),
+      loadDriverSignaturePng(admin, order.driver_signature_path as string | null),
+      loadSignaturePng(admin, order.offloader_signature_path as string | null),
+    ]);
+  const driver = driverRes.data;
 
   let pdfBuffer: Buffer;
   try {

@@ -1,8 +1,8 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin-server";
-import { resolveSupervisorDisplayAlias } from "@/lib/integrations/resolve-supervisor-alias";
+import { loadSupervisorAliasMap } from "@/lib/integrations/resolve-supervisor-alias";
+import { batchSignedStorageUrls } from "@/lib/integrations/stored-pdf-path";
 
 export type OutletReturnIntegrationRecord = {
   outlet_name: string;
@@ -14,6 +14,14 @@ export type OutletReturnIntegrationRecord = {
   return_id: string;
   outlet_id: string;
   supervisor_decided_at: string;
+  catalog_line_id: string | null;
+  parent_product_id: string | null;
+  line_name: string | null;
+  line_uom: string | null;
+  return_qty: number | null;
+  return_units_per_order: number | null;
+  return_units_per_order_uom: string | null;
+  is_variant: boolean;
 };
 
 export type OutletReturnsIntegrationResponse = {
@@ -38,6 +46,14 @@ type ReturnRow = {
   supervisor_decided_at: string | null;
   supervisor_accepted_by: string | null;
   supervisor_rejected_by: string | null;
+  catalog_line_id: string | null;
+  parent_product_id: string | null;
+  line_name: string | null;
+  line_uom: string | null;
+  return_qty: number | null;
+  return_units_per_order: number | null;
+  return_units_per_order_uom: string | null;
+  is_variant: boolean | null;
 };
 
 function encodeReturnCursor(decidedAt: string, returnId: string): string {
@@ -58,30 +74,16 @@ function decodeReturnCursor(cursor: string): { decidedAt: string; returnId: stri
   }
 }
 
-async function signedReturnsPhotoUrl(
-  admin: SupabaseClient,
-  photoPath: string | null | undefined,
-): Promise<string | null> {
-  if (!photoPath?.trim().startsWith("returns/")) return null;
-  const key = photoPath.trim().replace(/^returns\//, "");
-  const { data, error } = await admin.storage.from("returns").createSignedUrl(key, 3600);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
-}
-
-async function resolveReturnSupervisorAlias(
-  admin: SupabaseClient,
+function resolveReturnSupervisorAliasFromMaps(
   row: ReturnRow,
-): Promise<string> {
+  aliasByUserId: Map<string, string>,
+): string {
   const stored = String(row.supervisor_decision_alias ?? "").trim();
   if (stored) return stored;
 
   const userId = row.supervisor_accepted_by ?? row.supervisor_rejected_by;
   if (userId) {
-    return resolveSupervisorDisplayAlias(admin, {
-      supervisor_accepted_alias: null,
-      supervisor_accepted_by: userId,
-    });
+    return aliasByUserId.get(String(userId)) ?? "Supervisor";
   }
   return "Supervisor";
 }
@@ -97,7 +99,7 @@ export async function fetchOutletReturnsIntegrationExport(options?: {
   let query = admin
     .from("outlet_returns")
     .select(
-      "id, return_number, outlet_id, outlet_name, status, employee_name, photo_path, supervisor_decision_alias, supervisor_decided_at, supervisor_accepted_by, supervisor_rejected_by",
+      "id, return_number, outlet_id, outlet_name, status, employee_name, photo_path, supervisor_decision_alias, supervisor_decided_at, supervisor_accepted_by, supervisor_rejected_by, catalog_line_id, parent_product_id, line_name, line_uom, return_qty, return_units_per_order, return_units_per_order_uom, is_variant",
     )
     .in("status", ["accepted", "rejected"])
     .not("supervisor_decided_at", "is", null)
@@ -125,26 +127,44 @@ export async function fetchOutletReturnsIntegrationExport(options?: {
   const hasMore = allRows.length > limit;
   const rows = hasMore ? allRows.slice(0, limit) : allRows;
 
-  const records: OutletReturnIntegrationRecord[] = await Promise.all(
-    rows.map(async (row) => {
-      const decision = row.status === "accepted" ? "accepted" : "rejected";
-      const [image_link, supervisor_alias] = await Promise.all([
-        signedReturnsPhotoUrl(admin, row.photo_path),
-        resolveReturnSupervisorAlias(admin, row),
-      ]);
-      return {
-        outlet_name: row.outlet_name,
-        return_order_id: row.return_number,
-        employee_name: row.employee_name,
-        supervisor_alias,
-        supervisor_decision: decision,
-        image_link,
-        return_id: row.id,
-        outlet_id: row.outlet_id,
-        supervisor_decided_at: String(row.supervisor_decided_at ?? ""),
-      };
-    }),
-  );
+  const supervisorUserIds = rows.flatMap((row) => {
+    const ids: string[] = [];
+    if (row.supervisor_accepted_by) ids.push(String(row.supervisor_accepted_by));
+    if (row.supervisor_rejected_by) ids.push(String(row.supervisor_rejected_by));
+    return ids;
+  });
+
+  const [photoUrlByPath, aliasByUserId] = await Promise.all([
+    batchSignedStorageUrls(admin, rows.map((row) => row.photo_path)),
+    loadSupervisorAliasMap(admin, supervisorUserIds),
+  ]);
+
+  const records: OutletReturnIntegrationRecord[] = rows.map((row) => {
+    const decision = row.status === "accepted" ? "accepted" : "rejected";
+    const photoKey = row.photo_path?.trim() ?? "";
+    const image_link = photoKey ? (photoUrlByPath.get(photoKey) ?? null) : null;
+    const supervisor_alias = resolveReturnSupervisorAliasFromMaps(row, aliasByUserId);
+    return {
+      outlet_name: row.outlet_name,
+      return_order_id: row.return_number,
+      employee_name: row.employee_name,
+      supervisor_alias,
+      supervisor_decision: decision,
+      image_link,
+      return_id: row.id,
+      outlet_id: row.outlet_id,
+      supervisor_decided_at: String(row.supervisor_decided_at ?? ""),
+      catalog_line_id: row.catalog_line_id ?? null,
+      parent_product_id: row.parent_product_id ?? null,
+      line_name: row.line_name ?? null,
+      line_uom: row.line_uom ?? null,
+      return_qty: row.return_qty != null ? Number(row.return_qty) : null,
+      return_units_per_order:
+        row.return_units_per_order != null ? Number(row.return_units_per_order) : null,
+      return_units_per_order_uom: row.return_units_per_order_uom ?? null,
+      is_variant: Boolean(row.is_variant),
+    };
+  });
 
   const last = rows[rows.length - 1];
   const next_cursor =

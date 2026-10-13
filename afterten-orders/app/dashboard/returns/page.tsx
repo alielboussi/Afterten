@@ -30,6 +30,27 @@ async function signedUrl(
   return data.signedUrl;
 }
 
+function buildProductSummary(row: {
+  line_name: string | null;
+  line_uom: string | null;
+  return_qty: number | null;
+  return_units_per_order: number | null;
+  return_units_per_order_uom: string | null;
+}): string | null {
+  const lineName = row.line_name?.trim();
+  const returnQty = row.return_qty != null ? Number(row.return_qty) : null;
+  if (!lineName || returnQty == null || returnQty <= 0) return null;
+  const lineUom = row.line_uom?.trim() ?? "";
+  const returnUnits =
+    row.return_units_per_order != null ? Number(row.return_units_per_order) : null;
+  const returnUnitsUom = row.return_units_per_order_uom?.trim() ?? "";
+  const base = lineUom ? `${returnQty} ${lineUom}` : String(returnQty);
+  if (returnUnits != null && returnUnitsUom) {
+    return `${lineName} — ${base} (${returnQty * returnUnits} ${returnUnitsUom})`;
+  }
+  return `${lineName} — ${base}`;
+}
+
 export default async function ReturnsPage() {
   let returns: PortalReturnRow[] = [];
   let loadError: string | null = null;
@@ -39,7 +60,7 @@ export default async function ReturnsPage() {
     const { data, error } = await admin
       .from("outlet_returns")
       .select(
-        "id, return_number, outlet_id, outlet_name, status, employee_name, created_at, photo_path, pdf_path",
+        "id, return_number, outlet_id, outlet_name, status, employee_name, created_at, photo_path, pdf_path, line_name, line_uom, return_qty, return_units_per_order, return_units_per_order_uom",
       )
       .order("created_at", { ascending: false })
       .limit(150);
@@ -61,6 +82,13 @@ export default async function ReturnsPage() {
           outlet_name: String(row.outlet_name),
           status: String(row.status),
           employee_name: String(row.employee_name),
+          product_summary: buildProductSummary({
+            line_name: row.line_name as string | null,
+            line_uom: row.line_uom as string | null,
+            return_qty: row.return_qty as number | null,
+            return_units_per_order: row.return_units_per_order as number | null,
+            return_units_per_order_uom: row.return_units_per_order_uom as string | null,
+          }),
           placed_at_label: formatCreated(String(row.created_at)),
           photo_url,
           pdf_url,

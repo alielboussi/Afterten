@@ -5,6 +5,7 @@ export type PortalReturnRow = {
   outlet_name: string;
   status: string;
   employee_name: string;
+  product_summary: string | null;
   placed_at_label: string;
   photo_url: string | null;
   pdf_url: string | null;

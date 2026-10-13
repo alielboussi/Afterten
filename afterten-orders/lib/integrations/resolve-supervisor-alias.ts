@@ -54,3 +54,25 @@ export async function resolveSupervisorDisplayAlias(
 
   return stored || "Supervisor";
 }
+
+/** Batch-resolve supervisor display names for integration exports. */
+export async function loadSupervisorAliasMap(
+  admin: SupabaseClient,
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const ids = [...new Set(userIds.map((id) => id.trim()).filter(Boolean))];
+  const map = new Map<string, string>();
+  if (ids.length === 0) return map;
+
+  const { data } = await admin
+    .from("supervisor_profiles")
+    .select("user_id, alias, email")
+    .in("user_id", ids);
+
+  for (const row of data ?? []) {
+    const uid = String(row.user_id ?? "");
+    const label = String(row.alias ?? "").trim() || String(row.email ?? "").trim();
+    if (uid && label) map.set(uid, label);
+  }
+  return map;
+}

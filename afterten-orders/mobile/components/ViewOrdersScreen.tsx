@@ -79,7 +79,7 @@ export function ViewOrdersScreen({
         <Text style={styles.backLinkText}>← Dashboard</Text>
       </Pressable>
       <Text style={styles.title}>View Orders</Text>
-      <Text style={styles.lead}>Supervisor-approved orders with the latest line changes.</Text>
+      <Text style={styles.lead}>Orders loaded and on the way — open for line details.</Text>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 

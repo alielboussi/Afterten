@@ -1,0 +1,183 @@
+Afterten Orders — API surface reference
+Generated for ops / integrators. Production portal base: https://aftertentransfers.app
+(Override in mobile with EXPO_PUBLIC_PORTAL_URL.)
+
+================================================================================
+1. EXTERNAL INTEGRATION API (Bearer token)
+================================================================================
+Auth: Authorization: Bearer <ORDERS_INTEGRATION_BEARER_KEY>
+      (Vercel env ORDERS_INTEGRATION_BEARER_KEY — same key for all routes below.)
+
+GET /api/integrations/supervisor-accepted-orders
+  Orders with supervisor_accepted_at set; status accepted | loaded | completed.
+  Query: limit (1–100), since (ISO), cursor, view=lines|summary, detail=compact|standard|full,
+         active_outlets_only (default true; false to include inactive outlets).
+  Response: { integration, generated_at, view, detail, orders_in_page, record_count, next_cursor, records[] }
+
+GET /api/integrations/outlet-placed-orders
+  Orders with employee signature (placed, not yet accepted).
+  Same query params as above (sort: created_at).
+
+GET /api/integrations/driver-handoffs
+  Loaded/dispatched orders: status loaded | completed, driver_signature_path and loaded_at set.
+  Sort: loaded_at. Same query params as supervisor-accepted-orders.
+  Signature URLs on each record (when paths exist):
+    - driver_signature_url          (driver handoff image — stored as WebP in driver-signatures bucket)
+    - supervisor_dispatch_signature_url
+    - outlet_employee_signature_url (placed order employee sign)
+
+GET /api/integrations/outlet-offloading
+  Completed orders with offloader_signature_path and completed_at.
+  Sort: completed_at. Same query params.
+  Signature URLs: offloader_signature_url, driver_signature_url, supervisor_dispatch_signature_url, outlet_employee_signature_url.
+
+GET /api/integrations/outlet-returns
+  Returns only after supervisor decision (accepted or rejected — not submitted).
+  Query: limit (1–100), since (ISO on supervisor_decided_at), cursor.
+  Response: { integration: "outlet_returns", generated_at, record_count, next_cursor, records[] }
+  Per record: outlet_name, return_order_id, employee_name, supervisor_alias, supervisor_decision,
+              image_link (signed URL to return photo), return_id, outlet_id, supervisor_decided_at,
+              catalog_line_id, parent_product_id, line_name, line_uom, return_qty,
+              return_units_per_order, return_units_per_order_uom, is_variant.
+  Total return pieces: return_qty * return_units_per_order (in return_units_per_order_uom).
+
+POST /api/integrations/product-live-qty
+  Body: { "items": [ { "product_id": "<inventory UUID>", "qty": 12.5 } ] }  (max 500 items)
+  Updates live_qty for catalog gating in outlet app.
+
+================================================================================
+2. OUTLET / SUPERVISOR MOBILE → PORTAL (Supabase user JWT)
+================================================================================
+Auth: Authorization: Bearer <supabase_access_token>
+
+POST /api/outlet-app/ensure-order-pdf           Body: { order_id }
+POST /api/outlet-app/ensure-approved-order-pdf  Body: { order_id }
+POST /api/outlet-app/ensure-completed-order-pdf Body: { order_id }
+POST /api/outlet-app/ensure-driver-handoff-pdf  Body: { order_id }  (supervisor)
+POST /api/outlet-app/ensure-return-pdf          Body: { return_id }   (outlet, after submit)
+
+PDFs downloaded from Supabase Storage buckets: order-pdfs, approved-orders, completed-orders, returns.
+
+================================================================================
+3. SUPABASE → PORTAL WEBHOOKS (async, pg_net)
+================================================================================
+Header: x-order-notify-secret: <ORDER_NOTIFY_WEBHOOK_SECRET>
+(Must match Vercel ORDER_NOTIFY_WEBHOOK_SECRET and Supabase order_notify_config.webhook_secret.)
+
+POST /api/webhooks/outlet-order-placed           Body: { order_id }
+POST /api/webhooks/supervisor-order-accepted     Body: { order_id }
+POST /api/webhooks/driver-handoff-pdf            Body: { order_id }
+POST /api/webhooks/driver-order-loaded           Body: { order_id }
+POST /api/webhooks/outlet-order-ready-offload    Body: { order_id }
+POST /api/webhooks/phase-push                    Body: { event, order_id?, return_id? }
+  Events: outlet_order_accepted, supervisor_order_dispatched, supervisor_loading_checklist_done,
+          supervisor_order_completed, supervisor_offloading_checklist_done,
+          supervisor_return_submitted, outlet_return_decided
+
+Webhooks call Expo Push API (https://exp.host/--/api/v2/push/send) and optionally Wasender WhatsApp.
+
+================================================================================
+4. PORTAL CRON
+================================================================================
+GET /api/cron/daily-pick-summary        Auth: Bearer <CRON_SECRET>
+GET /api/cron/archive-completed-orders  Auth: Bearer <CRON_SECRET>
+
+================================================================================
+5. PORTAL DASHBOARD (browser session)
+================================================================================
+GET /api/portal/orders/pdf?orderId=<uuid>&kind=<placed|approved|completed|...>
+  Portal admin session only.
+
+================================================================================
+6. ORDERS APP (OUTLET) — SUPABASE RPC + STORAGE (JWT)
+================================================================================
+Auth: Supabase Auth + outlet app profile (profile_kind = outlet_app).
+
+RPCs:
+  get_outlet_app_profile
+  list_outlet_products
+  list_outlet_order_rules
+  resolve_catalog_products
+  get_outlet_checkout_context
+  place_outlet_order
+  list_outlet_employees_for_app
+  verify_outlet_employee_passcode
+  register_outlet_push_token
+  list_outlet_accepted_orders
+  get_outlet_accepted_order_detail
+  list_outlet_offloading_orders
+  get_outlet_offloading_order_detail
+  confirm_outlet_offloading_checklist
+  complete_outlet_order
+  list_outlet_completed_orders
+  get_completed_order_timeline
+  list_outlet_return_catalog
+  list_outlet_returns_for_app
+  preview_outlet_return_number
+  submit_outlet_return (p_return_id, p_outlet_employee_id, p_employee_passcode,
+                        p_employee_signature_path, p_photo_path, p_catalog_line_id, p_return_qty)
+
+Storage uploads: signatures, returns (photo + employee signature on return).
+
+================================================================================
+7. SUPERVISOR APP — SUPABASE RPC + STORAGE (JWT)
+================================================================================
+Auth: Supabase Auth + approved supervisor profile.
+
+RPCs:
+  get_supervisor_app_profile
+  list_outlets_for_supervisor
+  list_supervisor_orders
+  get_supervisor_order_detail
+  preview_supervisor_order_revision
+  accept_supervisor_order
+  get_delivery_loading_order_detail
+  confirm_delivery_loading_checklist
+  list_delivery_drivers
+  complete_driver_handoff
+  list_supervisor_completed_orders
+  get_completed_order_timeline
+  list_outlet_order_rules
+  resolve_catalog_products
+  register_supervisor_push_token
+  list_supervisor_returns
+  get_outlet_return_detail
+  accept_supervisor_return
+  reject_supervisor_return
+
+Storage: signatures, driver-signatures, returns (read signed URL).
+
+================================================================================
+8. THIRD-PARTY (server-side only)
+================================================================================
+  Expo Push:     https://exp.host/--/api/v2/push/send
+  WasenderAPI:   https://www.wasenderapi.com/api/send-message
+  Inventory:     External systems POST product-live-qty (not called from mobile apps).
+
+================================================================================
+NOTES
+================================================================================
+- docs/OUTLET-APP-API.md describes legacy Firebase; production apps use Supabase above.
+- Push setup: docs/PUSH-NOTIFICATIONS-SETUP.md
+- Driver handoff integration exposes driver_signature_url (HTTPS signed URL). File format is WebP
+  (image/webp), not JPEG; URL works in browsers and download clients.
+
+================================================================================
+VERIFICATION LOG (2026-10-13)
+================================================================================
+Production route probes (no Bearer): all six integration paths responded (not 404).
+  GET  /api/integrations/*  -> 401 Unauthorized (Bearer required; routes live).
+  GET  /api/integrations/product-live-qty -> 405 (POST only; route live).
+
+Database row counts (eligible export rows):
+  supervisor-accepted-orders: 9
+  outlet-placed-orders:       0
+  driver-handoffs:            6
+  outlet-offloading:          6
+  outlet-returns (decided):   1
+
+Driver handoff image (driver_signature_url source):
+  Storage path example: driver-signatures/.../*.webp
+  Signed URL test: HTTP 200, Content-Type: image/webp
+  Integration JSON field name: driver_signature_url (not "jpeg_link").
+  Outlet returns integration photo field: image_link (return photo in returns bucket).

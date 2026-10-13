@@ -52,7 +52,12 @@ export async function POST(req: Request) {
   await sendExpoPushBatch(tokens, {
     title: "New outlet order",
     body: `${order.outlet_name}: ${order.order_number} · ${formatKwacha(Number(order.grand_total))}`,
-    data: { orderId: order.id, orderNumber: order.order_number },
+    data: {
+      event: "supervisor_new_order",
+      orderId: order.id,
+      orderNumber: order.order_number,
+      screen: "orders",
+    },
   });
 
   return NextResponse.json({

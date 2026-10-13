@@ -8,6 +8,11 @@ export type OutletReturnRow = {
   employeeName: string;
   createdAt: string;
   photoPath: string;
+  lineName: string | null;
+  lineUom: string | null;
+  returnQty: number | null;
+  returnUnitsPerOrder: number | null;
+  returnUnitsPerOrderUom: string | null;
 };
 
 export async function fetchOutletReturns(
@@ -25,6 +30,16 @@ export async function fetchOutletReturns(
       const createdAt = typeof row.created_at === "string" ? row.created_at : "";
       const photoPath = typeof row.photo_path === "string" ? row.photo_path : "";
       if (!id || !returnNumber) return null;
+      const lineName = typeof row.line_name === "string" ? row.line_name.trim() : null;
+      const lineUom = typeof row.line_uom === "string" ? row.line_uom.trim() : null;
+      const returnQty = row.return_qty != null ? Number(row.return_qty) : null;
+      const returnUnitsPerOrder =
+        row.return_units_per_order != null ? Number(row.return_units_per_order) : null;
+      const returnUnitsPerOrderUom =
+        typeof row.return_units_per_order_uom === "string"
+          ? row.return_units_per_order_uom.trim()
+          : null;
+
       return {
         id,
         returnNumber,
@@ -32,6 +47,14 @@ export async function fetchOutletReturns(
         employeeName,
         createdAt,
         photoPath,
+        lineName: lineName || null,
+        lineUom: lineUom || null,
+        returnQty: returnQty != null && Number.isFinite(returnQty) ? returnQty : null,
+        returnUnitsPerOrder:
+          returnUnitsPerOrder != null && Number.isFinite(returnUnitsPerOrder)
+            ? returnUnitsPerOrder
+            : null,
+        returnUnitsPerOrderUom: returnUnitsPerOrderUom || null,
       };
     })
     .filter((r): r is OutletReturnRow => r != null);

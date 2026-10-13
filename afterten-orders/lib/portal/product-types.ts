@@ -14,5 +14,7 @@ export type ProductRow = {
   maxOrderQtyDays: number | null;
   unitsPerOrderUnit: number;
   unitsPerOrderUom: string;
+  returnUnitsPerOrder: number;
+  returnUnitsPerOrderUom: string;
   hasVariants: boolean;
 };

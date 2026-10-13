@@ -25,16 +25,18 @@ async function authorizeOutletOrSupervisor(authHeader: string | null) {
     return { ok: false as const, status: 401, error: "Unauthorized." };
   }
 
-  const { data: isSupervisor } = await userClient.rpc("is_approved_supervisor");
+  const [{ data: isSupervisor }, { data: profile }] = await Promise.all([
+    userClient.rpc("is_approved_supervisor"),
+    userClient
+      .from("app_profiles")
+      .select("outlet_id, profile_kind, active")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
+
   if (isSupervisor) {
     return { ok: true as const, userClient, mode: "supervisor" as const };
   }
-
-  const { data: profile } = await userClient
-    .from("app_profiles")
-    .select("outlet_id, profile_kind, active")
-    .eq("user_id", user.id)
-    .maybeSingle();
 
   if (profile?.active && profile.profile_kind === "outlet_app") {
     return {

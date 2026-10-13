@@ -19,11 +19,28 @@ export type SupervisorReturnDetail = {
   outletName: string;
   status: "submitted" | "accepted" | "rejected";
   employeeName: string;
+  productSummary: string | null;
   photoPath: string;
   employeeSignaturePath: string;
   pdfPath: string | null;
   createdAt: string;
 };
+
+function buildProductSummary(row: Record<string, unknown>): string | null {
+  const lineName = typeof row.line_name === "string" ? row.line_name.trim() : "";
+  const lineUom = typeof row.line_uom === "string" ? row.line_uom.trim() : "";
+  const returnQty = row.return_qty != null ? Number(row.return_qty) : null;
+  const returnUnits =
+    row.return_units_per_order != null ? Number(row.return_units_per_order) : null;
+  const returnUnitsUom =
+    typeof row.return_units_per_order_uom === "string" ? row.return_units_per_order_uom.trim() : "";
+  if (!lineName || returnQty == null || returnQty <= 0) return null;
+  const base = lineUom ? `${returnQty} ${lineUom}` : String(returnQty);
+  if (returnUnits != null && returnUnitsUom) {
+    return `${lineName} — ${base} (${returnQty * returnUnits} ${returnUnitsUom})`;
+  }
+  return `${lineName} — ${base}`;
+}
 
 export async function fetchSupervisorReturns(
   supabase: SupabaseClient,
@@ -83,6 +100,7 @@ export async function fetchSupervisorReturnDetail(
       outletName: String(row.outlet_name ?? ""),
       status: status === "accepted" || status === "rejected" ? status : "submitted",
       employeeName: String(row.employee_name ?? ""),
+      productSummary: buildProductSummary(row),
       photoPath: String(row.photo_path ?? ""),
       employeeSignaturePath: String(row.employee_signature_path ?? ""),
       pdfPath: typeof row.pdf_path === "string" ? row.pdf_path : null,

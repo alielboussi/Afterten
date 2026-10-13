@@ -52,6 +52,8 @@ export default async function EditProductPage({ params }: Props) {
               maxOrderQtyDays: product.maxOrderQtyDays,
               unitsPerOrderUnit: product.unitsPerOrderUnit,
               unitsPerOrderUom: product.unitsPerOrderUom?.trim() || "pcs",
+              returnUnitsPerOrder: product.returnUnitsPerOrder,
+              returnUnitsPerOrderUom: product.returnUnitsPerOrderUom?.trim() || "pcs",
               hasVariants: product.hasVariants,
             }}
           />

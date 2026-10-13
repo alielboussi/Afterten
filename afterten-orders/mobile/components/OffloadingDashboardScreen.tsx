@@ -131,9 +131,10 @@ function OffloadingOrderCard({
         >
           <Ionicons
             name="checkmark-circle-outline"
-            size={28}
+            size={24}
             color={checklistDone ? "#047857" : "#1e3a8a"}
           />
+          <Text style={styles.actionLabel}>Checklist</Text>
         </Pressable>
         <Pressable
           style={styles.actionBtn}
@@ -143,9 +144,10 @@ function OffloadingOrderCard({
         >
           <Ionicons
             name="create-outline"
-            size={28}
+            size={24}
             color={signatureReady ? "#c41e3a" : "#a8a29e"}
           />
+          <Text style={styles.actionLabel}>Sign</Text>
         </Pressable>
       </View>
     </Pressable>
@@ -185,5 +187,6 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12, color: "#57534e", marginTop: 4 },
   total: { fontSize: 15, fontWeight: "700", color: "#c41e3a", marginTop: 6 },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 16, marginTop: 12 },
-  actionBtn: { padding: 6 },
+  actionBtn: { padding: 6, alignItems: "center", minWidth: 72 },
+  actionLabel: { marginTop: 2, fontSize: 11, fontWeight: "600", color: "#57534e" },
 });

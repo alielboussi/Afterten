@@ -17,6 +17,7 @@ type Props = {
   supabase: SupabaseClient;
   photoUri: string;
   previewReturnNumber: string | null;
+  productSummary?: string | null;
   saving: boolean;
   saveError: string | null;
   contentPaddingBottom: number;
@@ -32,6 +33,7 @@ export function ReturnSubmitScreen({
   supabase,
   photoUri,
   previewReturnNumber,
+  productSummary,
   saving,
   saveError,
   contentPaddingBottom,
@@ -80,6 +82,7 @@ export function ReturnSubmitScreen({
         <Text style={styles.meta}>Return no. (preview): {previewReturnNumber}</Text>
       ) : null}
 
+      {productSummary ? <Text style={styles.meta}>{productSummary}</Text> : null}
       <Image source={{ uri: photoUri }} style={styles.photo} accessibilityLabel="Return photo" />
 
       <Text style={styles.label}>Employee</Text>

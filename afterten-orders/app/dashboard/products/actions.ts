@@ -27,6 +27,8 @@ export type ProductInput = {
   maxOrderQtyDays: string;
   unitsPerOrderUnit: number;
   unitsPerOrderUom: string;
+  returnUnitsPerOrder: number;
+  returnUnitsPerOrderUom: string;
   hasVariants: boolean;
 };
 
@@ -129,6 +131,8 @@ export async function createProduct(input: ProductInput) {
   }
   const unitsPerOrderUnit = input.unitsPerOrderUnit > 0 ? input.unitsPerOrderUnit : 1;
   const unitsPerOrderUom = input.unitsPerOrderUom.trim() || "pcs";
+  const returnUnitsPerOrder = input.returnUnitsPerOrder > 0 ? input.returnUnitsPerOrder : 1;
+  const returnUnitsPerOrderUom = input.returnUnitsPerOrderUom.trim() || "pcs";
 
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -149,6 +153,8 @@ export async function createProduct(input: ProductInput) {
       max_order_qty_days: maxOrderQtyDays,
       units_per_order_unit: unitsPerOrderUnit,
       units_per_order_uom: unitsPerOrderUom,
+      return_units_per_order: returnUnitsPerOrder,
+      return_units_per_order_uom: returnUnitsPerOrderUom,
       has_variants: input.hasVariants,
       updated_at: new Date().toISOString(),
     })
@@ -201,6 +207,8 @@ export async function updateProduct(id: string, input: ProductInput) {
   }
   const unitsPerOrderUnit = input.unitsPerOrderUnit > 0 ? input.unitsPerOrderUnit : 1;
   const unitsPerOrderUom = input.unitsPerOrderUom.trim() || "pcs";
+  const returnUnitsPerOrder = input.returnUnitsPerOrder > 0 ? input.returnUnitsPerOrder : 1;
+  const returnUnitsPerOrderUom = input.returnUnitsPerOrderUom.trim() || "pcs";
 
   const admin = createAdminClient();
   const { error } = await admin
@@ -220,6 +228,8 @@ export async function updateProduct(id: string, input: ProductInput) {
       max_order_qty_days: maxOrderQtyDays,
       units_per_order_unit: unitsPerOrderUnit,
       units_per_order_uom: unitsPerOrderUom,
+      return_units_per_order: returnUnitsPerOrder,
+      return_units_per_order_uom: returnUnitsPerOrderUom,
       has_variants: input.hasVariants,
       updated_at: new Date().toISOString(),
     })
@@ -240,6 +250,8 @@ export async function updateProduct(id: string, input: ProductInput) {
       max_order_qty_days: maxOrderQtyDays,
       units_per_order_unit: unitsPerOrderUnit,
       units_per_order_uom: unitsPerOrderUom,
+      return_units_per_order: returnUnitsPerOrder,
+      return_units_per_order_uom: returnUnitsPerOrderUom,
       updated_at: new Date().toISOString(),
     })
     .eq("product_id", productId);

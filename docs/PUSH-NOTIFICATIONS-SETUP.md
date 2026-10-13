@@ -4,12 +4,21 @@ Expo push **does not work in Expo Go** for production tokens. You need an **EAS 
 
 ## What each app receives
 
-| App | When | Server trigger |
-|-----|------|----------------|
-| **Supervisor** | New outlet order placed | Portal `/api/webhooks/outlet-order-placed` → `supervisor_push_tokens` |
-| **Outlet** | Order status `loaded` (ready to offload) | Portal `/api/webhooks/outlet-order-ready-offload` → `outlet_push_tokens` |
+| App | Phase | Push title (summary) | Trigger |
+|-----|-------|----------------------|---------|
+| **Supervisor** | Order placed | New outlet order | `/api/webhooks/outlet-order-placed` |
+| **Supervisor** | Loading checklist done | Ready for driver sign-off | DB → `/api/webhooks/phase-push` |
+| **Supervisor** | Dispatched (`loaded`) | Order dispatched | DB → `phase-push` + WhatsApp webhook |
+| **Supervisor** | Outlet receiving checklist done | Outlet receiving order | DB → `phase-push` |
+| **Supervisor** | Completed at outlet | Order completed at outlet | DB → `phase-push` |
+| **Supervisor** | Return submitted | New product return | DB → `phase-push` |
+| **Outlet** | Supervisor accepted | Order accepted | DB → `phase-push` |
+| **Outlet** | Dispatched (`loaded`) | Ready to offload | `/api/webhooks/outlet-order-ready-offload` |
+| **Outlet** | Return decided | Return accepted / rejected | DB → `phase-push` |
 
-In-app supervisor toasts (Realtime) still work while the app is open; push covers background/closed.
+Phase pushes use `order_notify_config.phase_push_webhook_url` (migration `20261013120000_order_phase_push_notifications.sql`) and the same `ORDER_NOTIFY_WEBHOOK_SECRET` as other order webhooks.
+
+In-app supervisor toasts (Realtime) still work while the app is open; push covers background/closed. Tapping a notification opens the matching screen when the app uses an EAS build with push registered.
 
 ---
 

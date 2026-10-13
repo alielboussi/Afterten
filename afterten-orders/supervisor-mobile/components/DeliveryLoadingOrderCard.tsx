@@ -49,9 +49,10 @@ export function DeliveryLoadingOrderCard({
         >
           <Ionicons
             name="checkmark-circle-outline"
-            size={28}
+            size={24}
             color={loaded || checklistDone ? "#047857" : "#1e3a8a"}
           />
+          <Text style={styles.actionLabel}>Checklist</Text>
         </Pressable>
         <Pressable
           style={styles.actionBtn}
@@ -61,9 +62,10 @@ export function DeliveryLoadingOrderCard({
         >
           <Ionicons
             name="create-outline"
-            size={28}
+            size={24}
             color={loaded ? "#047857" : signatureReady ? "#c41e3a" : "#a8a29e"}
           />
+          <Text style={styles.actionLabel}>Sign</Text>
         </Pressable>
       </View>
     </View>

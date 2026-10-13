@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hitToResult, storedPdfHit } from "@/lib/integrations/stored-pdf-path";
 
 const LOGO_PATH = resolveLogoPath();
 const PAGE_W = 595.28;
@@ -16,6 +17,23 @@ const CONTENT_LEFT = PAD + BORDER_PT;
 const CONTENT_WIDTH = PAGE_W - 2 * (PAD + BORDER_PT);
 const RED = "#DC2626";
 const LOGO_SIZE = 56;
+
+let cachedReturnLogoPng: Buffer | null | undefined;
+
+async function loadReturnLogoPng(): Promise<Buffer | null> {
+  if (cachedReturnLogoPng !== undefined) return cachedReturnLogoPng;
+  try {
+    if (!existsSync(LOGO_PATH)) {
+      cachedReturnLogoPng = null;
+      return null;
+    }
+    cachedReturnLogoPng = await sharp(LOGO_PATH).png().toBuffer();
+    return cachedReturnLogoPng;
+  } catch {
+    cachedReturnLogoPng = null;
+    return null;
+  }
+}
 
 function resolveLogoPath(): string {
   const fromModule = path.join(
@@ -96,6 +114,7 @@ async function renderReturnPdf(input: {
   returnNumber: string;
   submittedAtLabel: string;
   employeeName: string;
+  productLine: string | null;
   photoPng: Buffer | null;
   signaturePng: Buffer | null;
 }): Promise<Buffer> {
@@ -125,6 +144,7 @@ async function renderReturnPdf(input: {
       `Return no.: ${input.returnNumber}`,
       input.submittedAtLabel,
       `Submitted by: ${input.employeeName}`,
+      ...(input.productLine ? [input.productLine] : []),
     ];
     for (const line of lines) {
       doc.text(line, CONTENT_LEFT, y, { width: CONTENT_WIDTH, align: "center" });
@@ -171,7 +191,7 @@ export async function generateAndStoreOutletReturnPdf(
   const { data: row, error: rowErr } = await admin
     .from("outlet_returns")
     .select(
-      "id, outlet_id, outlet_name, return_number, employee_name, photo_path, employee_signature_path, created_at, pdf_path",
+      "id, outlet_id, outlet_name, return_number, employee_name, photo_path, employee_signature_path, created_at, pdf_path, line_name, line_uom, return_qty, return_units_per_order, return_units_per_order_uom",
     )
     .eq("id", returnId)
     .maybeSingle();
@@ -192,17 +212,29 @@ export async function generateAndStoreOutletReturnPdf(
     hour12: false,
   }).format(createdAt)} (Kitwe)`;
 
-  let logoBuf: Buffer | null = null;
-  try {
-    if (existsSync(LOGO_PATH)) logoBuf = await sharp(LOGO_PATH).png().toBuffer();
-  } catch {
-    logoBuf = null;
-  }
+  const logoBuf = await loadReturnLogoPng();
 
   const [photoPng, signaturePng] = await Promise.all([
     loadReturnsBucketImage(admin, row.photo_path as string),
     loadReturnsBucketImage(admin, row.employee_signature_path as string),
   ]);
+
+  const lineName = row.line_name != null ? String(row.line_name).trim() : "";
+  const lineUom = row.line_uom != null ? String(row.line_uom).trim() : "";
+  const returnQty = row.return_qty != null ? Number(row.return_qty) : null;
+  const returnUnits =
+    row.return_units_per_order != null ? Number(row.return_units_per_order) : null;
+  const returnUnitsUom =
+    row.return_units_per_order_uom != null ? String(row.return_units_per_order_uom).trim() : "";
+  let productLine: string | null = null;
+  if (lineName && returnQty != null && returnQty > 0) {
+    const base = lineUom ? `${returnQty} ${lineUom}` : String(returnQty);
+    if (returnUnits != null && returnUnitsUom) {
+      productLine = `Product: ${lineName} — ${base} (${returnQty * returnUnits} ${returnUnitsUom})`;
+    } else {
+      productLine = `Product: ${lineName} — ${base}`;
+    }
+  }
 
   let pdfBuffer: Buffer;
   try {
@@ -213,6 +245,7 @@ export async function generateAndStoreOutletReturnPdf(
       returnNumber: String(row.return_number),
       submittedAtLabel,
       employeeName: String(row.employee_name),
+      productLine,
       photoPng,
       signaturePng,
     });
